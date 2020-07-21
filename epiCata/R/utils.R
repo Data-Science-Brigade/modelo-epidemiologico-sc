@@ -42,20 +42,12 @@ get_forecast_dfs <- function(location_name, model_output, forecast=30){
   data_location <- data.frame("time" = as_date(as.character(model_output$stan_list$dates[[i]])),
                              "location_name" = rep(location_name, length(model_output$stan_list$dates[[i]])),
                              "reported_cases" = model_output$stan_list$reported_cases[[i]],
-                             "reported_cases_c" = cumsum(model_output$stan_list$reported_cases[[i]]),
-                             "predicted_cases_c" = cumsum(predicted_cases),
-                             "predicted_min_c" = cumsum(predicted_cases_li),
-                             "predicted_max_c" = cumsum(predicted_cases_ui),
                              "predicted_cases" = predicted_cases,
                              "predicted_min" = predicted_cases_li,
                              "predicted_max" = predicted_cases_ui,
                              "predicted_min2" = predicted_cases_li2,
                              "predicted_max2" = predicted_cases_ui2,
                              "deaths" = model_output$stan_list$deaths_by_location[[i]],
-                             "deaths_c" = cumsum(model_output$stan_list$deaths_by_location[[i]]),
-                             "estimated_deaths_c" =  cumsum(estimated_deaths),
-                             "death_min_c" = cumsum(estimated_deaths_li),
-                             "death_max_c"= cumsum(estimated_deaths_ui),
                              "estimated_deaths" = estimated_deaths,
                              "death_min" = estimated_deaths_li,
                              "death_max"= estimated_deaths_ui,
@@ -66,6 +58,41 @@ get_forecast_dfs <- function(location_name, model_output, forecast=30){
                              "rt_max" = rt_ui,
                              "rt_min2" = rt_li2,
                              "rt_max2" = rt_ui2)
+
+  #### ADD MISSING ORIGINAL DATA ####
+  # Because of the filters performed and described on `R/preprocessing/get_stan_data_for_location`,
+  #  the first deaths might not appear on the model's internal deaths dataframe.
+  # Therefore, we need to add the missing data from the original data frame (model_output$covid_data)
+  min_date <-
+    data_location %>%
+    filter(time == min(time)) %>%
+    select(location_name, time) %>%
+    rename(min_internal_date=time)
+
+  name_of_location <- location_name
+  missing_original_data <- model_output$covid_data %>% filter(location_name == name_of_location)
+  missing_original_data <-
+    missing_original_data %>%
+    rename(time=data_ocorrencia, reported_cases=casos, deaths=obitos) %>%
+    full_join(min_date) %>%
+    mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time < min_internal_date) %>%
+    select(-c(min_internal_date, cum_cases))
+
+  data_location <- bind_rows(missing_original_data, data_location) %>% replace(is.na(.), 0)
+
+  #### ADD CUMULATIVE SUMS ####
+  data_location <-
+    data_location %>%
+    arrange(time) %>%
+    mutate(reported_cases_c = cumsum(reported_cases),
+           predicted_cases_c = cumsum(predicted_cases),
+           predicted_min_c = cumsum(predicted_min),
+           predicted_max_c = cumsum(predicted_max),
+           deaths_c = cumsum(deaths),
+           estimated_deaths_c =  cumsum(estimated_deaths),
+           death_min_c = cumsum(death_min),
+           death_max_c= cumsum(death_max))
+
 
   times <- as_date(as.character(model_output$stan_list$dates[[i]]))
   times_forecast <- times[length(times)] + 0:forecast

@@ -70,7 +70,7 @@ run_epidemiological_model <- function(selected_date, model_name="base", mode="FU
 
   out = rstan::extract(fit)
 
-  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=model_name, mode=mode)
+  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=model_name, mode=mode, covid_data=covid_data)
 
   save_fitted_model(model_output, reference_date)
 }
