@@ -95,6 +95,13 @@ get_stan_data_for_location <- function(location_name, N2, ecdf.saved, covid_data
   cat(sprintf("\n\nParsing data for location: %s\n", location_name))
   location_data <- covid_data[covid_data$location_name == location_name, ] %>% arrange(data_ocorrencia)
 
+  # Epidemic start -- for the model -- starts 30 days before the 10th death happened
+  # From Imperial's Technical Report
+  # (https://github.com/Data-Science-Brigade/Imperial-covid19-model/blob/master/Technical_description_of_Imperial_COVID_19_Model.pdf):
+  #   "We assume that seeding of new infections begins 30 days before the day after a country has cumulatively observed 10 deaths.
+  #    From this date, we seed our model with 6 sequential days of an equal number of infections:
+  #      c_{1,m}=···=c_{6,m} ∼ Exponential(1τ), where τ∼Exponential(0.03).
+  #    These seed infections are inferred in our Bayesian posterior distribution."
   idx_deaths_mark <- which(cumsum(location_data$obitos) >= 10)[1]
   month_before_deaths_mark <- idx_deaths_mark - 30
 
