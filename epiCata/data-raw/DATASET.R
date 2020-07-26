@@ -48,7 +48,7 @@ pop <- bind_rows(SC_pop_cities, SC_pop_macrorregions, SC_pop_state)
 
 df <- readr::read_csv("data-raw/Global_Mobility_Report_latest.csv")
 df %>% filter(country_region_code == "BR", sub_region_1 == "State of Santa Catarina") %>%
-  write_csv("inst/extdata/2020_07_19_google_mobility.csv")
+  write_csv("inst/extdata/2020_07_26_google_mobility.csv")
 
 #### SAVE IT ALL ####
 
