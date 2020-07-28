@@ -104,3 +104,32 @@ get_forecast_dfs <- function(location_name, model_output, forecast=30){
 
   list(data_location=data_location, data_location_forecast=data_location_forecast)
 }
+
+round_y_breaks <- function(max_y_break, n_breaks=4){
+  n_integer_digits <- floor(log10(max_y_break)) - 1
+  # Check if we only have two digits or less
+  if(n_integer_digits<=0){
+    base <- 10^(n_integer_digits+1) * (floor(max_y_break/10^(n_integer_digits+1)))
+    second_base <- if(max_y_break-base<=5) {5} else {10}
+  } else { # Otherwise, round as usual
+    first_digit <- floor(max_y_break/10^(n_integer_digits+1))
+    base <- 10^(n_integer_digits+1) * first_digit
+    second_base_first_digit <- (1+floor((max_y_break-base)/10^(n_integer_digits)))
+    second_base <- 10^(n_integer_digits) * second_base_first_digit
+    # But check if the first digit of the second base is higher than 5
+    # Or if the y_break divided by the number of breaks won't be divisible by 5
+    #if(second_base_first_digit>5 && (((base+second_base)/n_breaks) %% 5)>0){
+      # If so, just increment the first digit by one which guarantees divisible by 5
+    #  base <- 10^(n_integer_digits+1) * (first_digit + 1)
+    #  second_base <- 0
+    #}
+    # While the new max_y_break is not divisible by 5 times the number of breaks
+    # And the second_base_first_digit is lower than 10
+    while(!near((((base+second_base)/n_breaks) %% 5),0) && second_base_first_digit<10) {
+      second_base_first_digit <- second_base_first_digit+1
+      second_base <- 10^(n_integer_digits) * second_base_first_digit
+    }
+  }
+  max_y_break <- base + second_base
+  max_y_break
+}
