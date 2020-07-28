@@ -58,7 +58,11 @@ make_three_panel_plot <- function(location_name, model_output, auto_save=TRUE, m
   dfs <- get_forecast_dfs(location_name, model_output)
 
   #### CONFIGURE X BREAKS ####
-  x_min_date <- min(dfs$data_location$time)
+  x_min_date <- if(max(dfs$data_location$reported_cases_c)>=50) {
+    min(filter(dfs$data_location, predicted_cases_c>0)$time) - 7
+  } else {
+    min(dfs$data_location$time)
+  }
   x_max_date <- max(dfs$data_location$time)
 
   rest <- as.integer(x_max_date - x_min_date) %% 7
@@ -143,8 +147,7 @@ plot_graph_A <- function(location_name, x_breaks, dfs){
   final_values$y <- round(final_values$y)
 
   max_y_break <- max(data_cases$cases_max)
-  n_integer_digits <- floor(log10(max_y_break)) + 1
-  max_y_break <- ceiling(max_y_break/10^(n_integer_digits - 1)) * 10^(n_integer_digits - 1)
+  max_y_break <- round_y_breaks(max_y_break)
 
   original_y_breaks <- seq(0, max_y_break, max_y_break/4)
 
@@ -454,8 +457,7 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
 
   if(is.null(max_y_break)){
     max_y_break <- max(cumulative_deaths$value)
-    n_integer_digits <- floor(log10(max_y_break)) + 1
-    max_y_break <- ceiling(max_y_break/10^(n_integer_digits - 1)) * 10^(n_integer_digits - 1)
+    max_y_break <- round_y_breaks(max_y_break)
   }
 
   y_separation <- floor(max_y_break - min_y_break)
