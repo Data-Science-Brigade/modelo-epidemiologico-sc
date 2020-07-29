@@ -1,4 +1,3 @@
-
 library(epiCata)
 
 allowed_locations <-
@@ -19,10 +18,13 @@ allowed_locations <-
     "SC_MUN_CHAPECO"
 )
 
+reference_date <- "2020-07-27"
+
 model_output <-
-  run_epidemiological_model(mode="DEBUG",
-                            allowed_locations=allowed_locations,
-                            reference_date="2020-07-20")
+  run_epidemiological_model(allowed_locations=allowed_locations,
+                            reference_date=reference_date,
+                            mode="DEBUG")
+
 for(location_name in model_output$stan_list$available_locations){
   make_three_panel_plot(location_name, model_output)
 }
