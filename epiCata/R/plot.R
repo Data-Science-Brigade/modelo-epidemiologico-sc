@@ -37,14 +37,14 @@ plot_final_Rt <- function(model_output, auto_save=TRUE){
 
 #### 3-PANEL ####
 
-make_all_three_panel_plot <- function(model_output, min_x_break="2020-03-12", aggregate_name){
+make_all_three_panel_plot <- function(model_output,aggregate_name){
   available_locations <- model_output$stan_list$available_locations
 
   for(location_name in available_locations){
-    make_three_panel_plot(location_name, model_output, auto_save=TRUE, min_x_break=min_x_break)
+    make_three_panel_plot(location_name, model_output, auto_save=TRUE)
   }
   if(!missing(aggregate_name)){
-    make_three_panel_plot(available_locations, model_output, auto_save=TRUE, min_x_break=min_x_break, location_name = aggregate_name)
+    make_three_panel_plot(available_locations, model_output, auto_save=TRUE, location_name = aggregate_name)
   }
 }
 
