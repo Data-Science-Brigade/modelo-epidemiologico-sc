@@ -17,7 +17,7 @@ model_output <-
                             reference_date=reference_date,
                             mode="DEBUG")
 
-make_all_three_panel_plot(model_output, aggregate_name = "SC_ESTADO")
+make_all_three_panel_plot(model_output)
 
-make_all_forecast_plots(model_output, aggregate_name = "SC_ESTADO")
+make_all_forecast_plots(model_output)
 
