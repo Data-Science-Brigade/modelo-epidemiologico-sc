@@ -7,7 +7,7 @@ allowed_locations <-
     "SC_MAC_GRANDE_FLORIANOPOLIS",
     "SC_MAC_SUL",
     "SC_MAC_ALTO_VALE_DO_ITAJAI",
-    "SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE",
+    "SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE"
 )
 
 reference_date <- "2020-07-27"
