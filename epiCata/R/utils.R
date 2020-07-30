@@ -104,11 +104,11 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
   estimated_deaths_ui2_forecast <- matrixStats::colQuantiles(estimated_deaths_forecast_samples, probs=.75)
 
   #### COMPUTE RT ####
-  rt <- colMeans(model_output$out$Rt[,1:N,i])
-  rt_li <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.025)
-  rt_ui <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.975)
-  rt_li2 <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.25)
-  rt_ui2 <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.75)
+  rt <- colMeans(rt_samples)
+  rt_li <- matrixStats::colQuantiles(rt_samples,probs=.025)
+  rt_ui <- matrixStats::colQuantiles(rt_samples,probs=.975)
+  rt_li2 <- matrixStats::colQuantiles(rt_samples,probs=.25)
+  rt_ui2 <- matrixStats::colQuantiles(rt_samples,probs=.75)
 
   data_location <- data.frame(
                               #"time" = as_date((min_date + 0:(N-1))),
