@@ -2,11 +2,14 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
   require(lubridate)
 
   # Get dates
+  min_missing_date <- min(as_date(model_output$covid_data$data_ocorrencia))
   min_date <- min(reduce(model_output$stan_list$dates, min))
   max_date <- reduce(model_output$stan_list$dates, max)
   max_forecast_date <- max_date + forecast
 
   # Get data length
+  missingN <- as.integer(min_date-min_missing_date)
+  fullN <- as.integer(max_date-min_missing_date)+1
   N <- as.integer(max_date-min_date)+1
   N2 <- as.integer(max_forecast_date-min_date)+1
 
@@ -16,8 +19,8 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
   rt_samples <- array(0, dim=c(pred_dims[[1]],N))
   rt_samples_n <- array(0, dim=c(pred_dims[[1]],N))
   estimated_deaths_forecast_samples <- array(0, dim=c(pred_dims[[1]],forecast+1))
-  agg_reported_cases <- array(0, dim=N)
-  agg_reported_deaths <- array(0, dim=N)
+  agg_reported_cases <- array(0, dim=fullN)
+  agg_reported_deaths <- array(0, dim=fullN)
 
   for(location in location_names) {
     i <- which(model_output$stan_list$available_locations == location)
@@ -54,13 +57,27 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
       estimated_deaths_samples[,1:(forecast+1)] +
       model_output$out$E_deaths[,loc_N_l:(loc_N_l+forecast),i]
 
-    agg_reported_cases[agg_idx] <-
-      agg_reported_cases[agg_idx]+
-      model_output$stan_list$reported_cases[[i]]
 
-    agg_reported_deaths[agg_idx] <-
-      agg_reported_deaths[agg_idx]+
-      model_output$stan_list$deaths_by_location[[i]]
+    original_data <- model_output$covid_data %>%
+      filter(location_name == location)
+
+    min_original_data_date <- min(original_data$data_ocorrencia)
+    max_original_data_date <- min(max(original_data$data_ocorrencia), max_date)
+    original_data_start <-1 + as.integer((min_original_data_date - min_missing_date))
+    original_data_length <- (max_original_data_date - min_original_data_date)
+    orig_agg_idx <- original_data_start:(original_data_start+original_data_length)
+
+    #agg_reported_cases[agg_idx] <-
+    agg_reported_cases[orig_agg_idx] <-
+      agg_reported_cases[orig_agg_idx]+
+      original_data$casos
+      #model_output$stan_list$reported_cases[[i]]
+
+    #agg_reported_deaths[agg_idx] <-
+    agg_reported_deaths[orig_agg_idx] <-
+      agg_reported_deaths[orig_agg_idx]+
+      original_data$obitos
+      #model_output$stan_list$deaths_by_location[[i]]
   }
   # Average on Rt
   rt_samples <- rt_samples/rt_samples_n
@@ -99,13 +116,13 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
                               #"time" = seq(min_date, by = "day", length.out = N),
                               #"time" = sapply(0:(N-1), function(x){as_date(min_date) + days(x)}),
                               "location_name" = rep(aggregate_name, N),
-                              "reported_cases" = agg_reported_cases,
+                              "reported_cases" = agg_reported_cases[(missingN+1):(missingN+N)],
+                              "deaths" = agg_reported_deaths[(missingN+1):(missingN+N)],
                               "predicted_cases" = predicted_cases,
                               "predicted_min" = predicted_cases_li,
                               "predicted_max" = predicted_cases_ui,
                               "predicted_min2" = predicted_cases_li2,
                               "predicted_max2" = predicted_cases_ui2,
-                              "deaths" = agg_reported_deaths,
                               "estimated_deaths" = estimated_deaths,
                               "death_min" = estimated_deaths_li,
                               "death_max"= estimated_deaths_ui,
@@ -117,28 +134,12 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
                               "rt_min2" = rt_li2,
                               "rt_max2" = rt_ui2)
 
-  #### ADD MISSING ORIGINAL DATA ####
-  # Because of the filters performed and described on `R/preprocessing/get_stan_data_for_location`,
-  #  the first deaths might not appear on the model's internal deaths dataframe.
-  # Therefore, we need to add the missing data from the original data frame (model_output$covid_data)
-  data_location_min_date <-
-    data_location %>%
-    filter(time == min(time)) %>%
-    select(location_name, time) %>%
-    rename(min_internal_date=time)
-
-  missing_original_data <-
-    model_output$covid_data %>%
-    filter(location_name %in% location_names) %>%
-    group_by(data_ocorrencia) %>%
-    summarise(casos = sum(casos), obitos=sum(obitos), location_name=aggregate_name)
-
-  missing_original_data <-
-    missing_original_data %>%
-    rename(time=data_ocorrencia, reported_cases=casos, deaths=obitos) %>%
-    full_join(data_location_min_date) %>%
-    mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time < min_internal_date) %>%
-    select(-c(min_internal_date, cum_cases))
+  missing_original_data <- data.frame("time" = min_missing_date + days(0:(fullN-1)),
+                                      "location_name" = rep(aggregate_name, fullN),
+                                      "reported_cases" = agg_reported_cases,
+                                      "deaths" = agg_reported_deaths) %>%
+    mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time<min_date) %>%
+    select(-c(cum_cases))
 
   data_location <- bind_rows(missing_original_data, data_location) %>% replace(is.na(.), 0)
 
@@ -299,4 +300,56 @@ round_y_breaks <- function(max_y_break, n_breaks=4){
   }
   max_y_break <- base + second_base
   max_y_break
+}
+
+
+
+
+old_get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, aggregate_name="AGG") {
+  require(lubridate)
+  min_date <- min(as_date(model_output$covid_data$data_ocorrencia))
+  max_date <- NULL
+  data_location_df <- vector("list", length(location_names))
+  names(data_location_df) <- location_names
+  data_location_forecast_df <- vector("list", length(location_names))
+  names(data_location_forecast_df) <- location_names
+  for(location in location_names) {
+    dfs <- get_forecast_dfs(location, model_output, forecast=forecast)
+    data_location_df[[location]] <- dfs$data_location
+    data_location_forecast_df[[location]] <- dfs$data_location_forecast
+    if(is.null(min_date) || min(dfs$data_location$time)<min_date){
+      min_date <- min(dfs$data_location$time)
+    }
+    if(is.null(max_date) || max_date<max(dfs$data_location$time)){
+      max_date <- max(dfs$data_location$time)
+    }
+  }
+  N <- max_date-min_date
+  data_location <- data.frame("time" = as_date(min_date + 0:N),
+                              "location_name" = rep(aggregate_name, N+1),
+                              "reported_cases" = rep(0, N+1),
+                              "predicted_cases" = rep(0, N+1),
+                              "predicted_min" = rep(0, N+1),
+                              "predicted_max" = rep(0, N+1),
+                              "predicted_min2" = rep(0, N+1),
+                              "predicted_max2" = rep(0, N+1),
+                              "deaths" = rep(0, N+1),
+                              "estimated_deaths" = rep(0, N+1),
+                              "death_min" = rep(0, N+1),
+                              "death_max"= rep(0, N+1),
+                              "death_min2" = rep(0, N+1),
+                              "death_max2"= rep(0, N+1),
+                              "rt" = rep(0, N+1),
+                              "rt_min" = rep(0, N+1),
+                              "rt_max" = rep(0, N+1),
+                              "rt_min2" = rep(0, N+1),
+                              "rt_max2" = rep(0, N+1))
+
+  for(col in c("reported_cases", "predicted_cases", "predicted_min",
+               "predicted_max", "predicted_min2", "predicted_max2", "deaths",
+               "estimated_deaths", "death_min", "death_max", "death_min2",
+               "death_max2")) {
+    data_location[col]
+  }
+
 }
