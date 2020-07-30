@@ -37,25 +37,37 @@ plot_final_Rt <- function(model_output, auto_save=TRUE){
 
 #### 3-PANEL ####
 
-make_all_three_panel_plot <- function(model_output, min_x_break="2020-03-12"){
+make_all_three_panel_plot <- function(model_output, min_x_break="2020-03-12", aggregate_name){
   available_locations <- model_output$stan_list$available_locations
 
   for(location_name in available_locations){
     make_three_panel_plot(location_name, model_output, auto_save=TRUE, min_x_break=min_x_break)
   }
+  if(!missing(aggregate_name)){
+    make_three_panel_plot(available_locations, model_output, auto_save=TRUE, min_x_break=min_x_break, location_name = aggregate_name)
+  }
 }
 
-make_three_panel_plot <- function(location_name, model_output, auto_save=TRUE, min_x_break=NULL){
+make_three_panel_plot <- function(locations, model_output, auto_save=TRUE, min_x_break=NULL, location_name){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggplot2)
   require(scales)
   require(lubridate)
 
+  if(missing(location_name) && length(locations)==1) {
+    location_name <- locations[[1]]
+  }
+
   cat(sprintf("\n> Making 3-plots panel for %s", location_name))
 
   reference_date_str <- model_output$reference_date_str
-  dfs <- get_forecast_dfs(location_name, model_output)
+  dfs <- if(length(locations)>1){
+    get_merged_forecast_dfs(locations, model_output, aggregate_name=location_name)
+  } else {
+    get_merged_forecast_dfs(locations, model_output, aggregate_name=location_name)
+  }
+
 
   #### CONFIGURE X BREAKS ####
   x_min_date <- if(max(dfs$data_location$reported_cases_c)>=50) {
@@ -349,15 +361,18 @@ plot_graph_C <- function(location_name, x_breaks, dfs){
 
 #### FORECAST ####
 
-make_all_forecast_plots <- function(model_output){
+make_all_forecast_plots <- function(model_output, aggregate_name){
   available_locations <- model_output$stan_list$available_locations
 
   for(location_name in available_locations){
     make_forecast_plot(location_name, model_output, auto_save=TRUE)
   }
+  if(!missing(aggregate_name)){
+    make_forecast_plot(available_locations, model_output, auto_save=TRUE, location_name = aggregate_name)
+  }
 }
 
-make_forecast_plot <- function(location_name, model_output, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL){
+make_forecast_plot <- function(locations, model_output, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, location_name){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggrepel)
@@ -365,10 +380,18 @@ make_forecast_plot <- function(location_name, model_output, auto_save=TRUE, min_
   require(scales)
   require(lubridate)
 
+  if(missing(location_name) && length(locations)==1) {
+    location_name <- locations[[1]]
+  }
+
   cat(sprintf("\n> Making forecast plots for %s", location_name))
 
   reference_date_str <- model_output$reference_date_str
-  dfs <- get_forecast_dfs(location_name, model_output)
+  dfs <- if(length(locations)>1){
+    get_merged_forecast_dfs(locations, model_output, aggregate_name=location_name)
+  } else {
+    get_merged_forecast_dfs(locations, model_output, aggregate_name=location_name)
+  }
 
   df_rts <- dfs$data_location %>% filter(row_number() == n()) %>% select(rt_min, rt, rt_max)
 

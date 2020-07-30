@@ -25,9 +25,10 @@ model_output <-
                             reference_date=reference_date,
                             mode="DEBUG")
 
-for(location_name in model_output$stan_list$available_locations){
-  make_three_panel_plot(location_name, model_output)
-}
+#for(location_name in model_output$stan_list$available_locations){
+#  make_three_panel_plot(location_name, model_output)
+#}
+make_all_three_panel_plot(model_output, aggregate_name = "SC_ESTADO")
 
-make_all_forecast_plots(model_output)
+make_all_forecast_plots(model_output, aggregate_name = "SC_ESTADO")
 

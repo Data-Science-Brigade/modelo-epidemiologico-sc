@@ -1,3 +1,170 @@
+get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, aggregate_name="AGG") {
+  require(lubridate)
+
+  # Get dates
+  min_date <- min(reduce(model_output$stan_list$dates, min))
+  max_date <- reduce(model_output$stan_list$dates, max)
+  max_forecast_date <- max_date + forecast
+
+  # Get data length
+  N <- as.integer(max_date-min_date)+1
+  N2 <- as.integer(max_forecast_date-min_date)+1
+
+  pred_dims <- dim(model_output$out$prediction)
+  prediction_samples <- array(0, dim=c(pred_dims[[1]],N))
+  estimated_deaths_samples <- array(0, dim=c(pred_dims[[1]],N))
+  rt_samples <- array(0, dim=c(pred_dims[[1]],N))
+  rt_samples_n <- array(0, dim=c(pred_dims[[1]],N))
+  estimated_deaths_forecast_samples <- array(0, dim=c(pred_dims[[1]],forecast+1))
+  agg_reported_cases <- array(0, dim=N)
+  agg_reported_deaths <- array(0, dim=N)
+
+  for(location in location_names) {
+    i <- which(model_output$stan_list$available_locations == location)
+
+    location_start_date <- min(model_output$stan_list$dates[[i]])
+    location_end_date <- max(model_output$stan_list$dates[[i]])
+
+    loc_N_s <- 1 + as.integer((location_start_date - min_date))
+    loc_N_l <- model_output$stan_list$stan_data$N[i]
+
+    agg_idx <- loc_N_s:(loc_N_s+loc_N_l-1)
+    loc_idx <- 1:loc_N_l
+
+
+    prediction_samples[,agg_idx] <-
+      prediction_samples[,agg_idx] +
+      model_output$out$prediction[,loc_idx,i]
+
+    estimated_deaths_samples[,agg_idx] <-
+      estimated_deaths_samples[,agg_idx] +
+      model_output$out$E_deaths[,loc_idx,i]
+
+    rt_samples[,agg_idx] <-
+      rt_samples[,agg_idx] +
+      # model_output$out$Rt[,loc_idx,i] #Unweighted
+      model_output$out$Rt[,loc_idx,i] * model_output$stan_list$stan_data$pop[i] # Weighted by pop
+
+    rt_samples_n[,agg_idx] <-
+      rt_samples_n[,agg_idx] +
+      # 1 #Unweighted
+      model_output$stan_list$stan_data$pop[i] # Weighted by pop
+
+    estimated_deaths_forecast_samples[,1:(forecast+1)] <-
+      estimated_deaths_samples[,1:(forecast+1)] +
+      model_output$out$E_deaths[,loc_N_l:(loc_N_l+forecast),i]
+
+    agg_reported_cases[agg_idx] <-
+      agg_reported_cases[agg_idx]+
+      model_output$stan_list$reported_cases[[i]]
+
+    agg_reported_deaths[agg_idx] <-
+      agg_reported_deaths[agg_idx]+
+      model_output$stan_list$deaths_by_location[[i]]
+  }
+  # Average on Rt
+  rt_samples <- rt_samples/rt_samples_n
+
+  #### COMPUTE PREDICTIONS ####
+  predicted_cases <- colMeans(prediction_samples)
+  predicted_cases_li <- matrixStats::colQuantiles(prediction_samples, probs=.025)
+  predicted_cases_ui <- matrixStats::colQuantiles(prediction_samples, probs=.975)
+  predicted_cases_li2 <- matrixStats::colQuantiles(prediction_samples, probs=.25)
+  predicted_cases_ui2 <- matrixStats::colQuantiles(prediction_samples, probs=.75)
+
+  #### COMPUTE ESTIMATED DEATHS ####
+  estimated_deaths <- colMeans(estimated_deaths_samples)
+  estimated_deaths_li <- matrixStats::colQuantiles(estimated_deaths_samples, probs=.025)
+  estimated_deaths_ui <- matrixStats::colQuantiles(estimated_deaths_samples, probs=.975)
+  estimated_deaths_li2 <- matrixStats::colQuantiles(estimated_deaths_samples, probs=.25)
+  estimated_deaths_ui2 <- matrixStats::colQuantiles(estimated_deaths_samples, probs=.75)
+
+  #### COMPUTE FORECAST OF ESTIMATED DEATHS ####
+  estimated_deaths_forecast <- colMeans(estimated_deaths_forecast_samples)
+  estimated_deaths_li_forecast <- matrixStats::colQuantiles(estimated_deaths_forecast_samples, probs=.025)
+  estimated_deaths_ui_forecast <- matrixStats::colQuantiles(estimated_deaths_forecast_samples, probs=.975)
+  estimated_deaths_li2_forecast <- matrixStats::colQuantiles(estimated_deaths_forecast_samples, probs=.25)
+  estimated_deaths_ui2_forecast <- matrixStats::colQuantiles(estimated_deaths_forecast_samples, probs=.75)
+
+  #### COMPUTE RT ####
+  rt <- colMeans(model_output$out$Rt[,1:N,i])
+  rt_li <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.025)
+  rt_ui <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.975)
+  rt_li2 <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.25)
+  rt_ui2 <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.75)
+
+  data_location <- data.frame(
+                              #"time" = as_date((min_date + 0:(N-1))),
+                              "time" = min_date + days(0:(N-1)),
+                              #"time" = seq(min_date, by = "day", length.out = N),
+                              #"time" = sapply(0:(N-1), function(x){as_date(min_date) + days(x)}),
+                              "location_name" = rep(aggregate_name, N),
+                              "reported_cases" = agg_reported_cases,
+                              "predicted_cases" = predicted_cases,
+                              "predicted_min" = predicted_cases_li,
+                              "predicted_max" = predicted_cases_ui,
+                              "predicted_min2" = predicted_cases_li2,
+                              "predicted_max2" = predicted_cases_ui2,
+                              "deaths" = agg_reported_deaths,
+                              "estimated_deaths" = estimated_deaths,
+                              "death_min" = estimated_deaths_li,
+                              "death_max"= estimated_deaths_ui,
+                              "death_min2" = estimated_deaths_li2,
+                              "death_max2"= estimated_deaths_ui2,
+                              "rt" = rt,
+                              "rt_min" = rt_li,
+                              "rt_max" = rt_ui,
+                              "rt_min2" = rt_li2,
+                              "rt_max2" = rt_ui2)
+
+  #### ADD MISSING ORIGINAL DATA ####
+  # Because of the filters performed and described on `R/preprocessing/get_stan_data_for_location`,
+  #  the first deaths might not appear on the model's internal deaths dataframe.
+  # Therefore, we need to add the missing data from the original data frame (model_output$covid_data)
+  data_location_min_date <-
+    data_location %>%
+    filter(time == min(time)) %>%
+    select(location_name, time) %>%
+    rename(min_internal_date=time)
+
+  missing_original_data <-
+    model_output$covid_data %>%
+    filter(location_name %in% location_names) %>%
+    group_by(data_ocorrencia) %>%
+    summarise(casos = sum(casos), obitos=sum(obitos), location_name=aggregate_name)
+
+  missing_original_data <-
+    missing_original_data %>%
+    rename(time=data_ocorrencia, reported_cases=casos, deaths=obitos) %>%
+    full_join(data_location_min_date) %>%
+    mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time < min_internal_date) %>%
+    select(-c(min_internal_date, cum_cases))
+
+  data_location <- bind_rows(missing_original_data, data_location) %>% replace(is.na(.), 0)
+
+  #### ADD CUMULATIVE SUMS ####
+  data_location <-
+    data_location %>%
+    arrange(time) %>%
+    mutate(reported_cases_c = cumsum(reported_cases),
+           predicted_cases_c = cumsum(predicted_cases),
+           predicted_min_c = cumsum(predicted_min),
+           predicted_max_c = cumsum(predicted_max),
+           deaths_c = cumsum(deaths),
+           estimated_deaths_c =  cumsum(estimated_deaths),
+           death_min_c = cumsum(death_min),
+           death_max_c= cumsum(death_max))
+
+
+  data_location_forecast <- data.frame("time" = max_date + days(0:forecast),
+                                       "location_name" = rep(aggregate_name, forecast + 1),
+                                       "estimated_deaths_forecast" = estimated_deaths_forecast,
+                                       "death_min_forecast" = estimated_deaths_li_forecast,
+                                       "death_max_forecast"= estimated_deaths_ui_forecast)
+
+  list(data_location=data_location, data_location_forecast=data_location_forecast)
+}
+
 get_forecast_dfs <- function(location_name, model_output, forecast=30){
   require(lubridate)
 
