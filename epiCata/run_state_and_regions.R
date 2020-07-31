@@ -2,7 +2,8 @@ library(optparse)
 library(epiCata)
 library(lubridate)
 
-default_locations <- c("SC_MAC_FOZ_DO_RIO_ITAJAI",
+default_locations <- c("SC_ESTADO",
+                       "SC_MAC_FOZ_DO_RIO_ITAJAI",
                        "SC_MAC_PLANALTO_NORTE_E_NORDESTE",
                        "SC_MAC_GRANDE_OESTE",
                        "SC_MAC_GRANDE_FLORIANOPOLIS",
@@ -31,11 +32,9 @@ option_list = list(
               help = "Reference date for the model in ymd format."),
   make_option(c("-g", "--use-google-mobility"), type = "logical", default = TRUE, dest = "use_google_mobility",
               help = "If we should use google mobility data for the model"),
-  make_option(c("-a", "--aggregate-name"), type = "character", default = NULL, dest = "aggregate_name",
-              help = "If we should aggregate the macro-region data into a state data for plotting an aggregate version, the name of the aggregate should be passed here."),
   make_option(c("-l", "--allowed_locations"),
               default = default_locations, dest = "allowed_locations",
-              help = sprintf("List of Allowed locations, the default is all macro-regions from the Santa Catarina state: %s", paste(default_locations, collapse=", ")))
+              help = sprintf("List of Allowed locations, the default is all macro-regions from the Santa Catarina state, and the state itself: %s", paste(default_locations, collapse=", ")))
 )
 
 opt_parser = OptionParser(option_list=option_list);
@@ -45,7 +44,7 @@ if(!is.null(opt$selected_date)) { opt$selected_date <- ymd(opt$selected_date) }
 if(!is.null(opt$reference_date)) { opt$reference_date <- ymd(opt$reference_date) }
 
 if(all(is.null(opt$mode), is.null(opt$iter), is.null(opt$warmup), is.null(opt$chains),
-            is.null(opt$adapt_delta), is.null(opt$max_treedepth), is.null(opt$verbose))){
+       is.null(opt$adapt_delta), is.null(opt$max_treedepth), is.null(opt$verbose))){
   warning("No model parameter passed, running model in DEBUG mode")
   opt$mode <- "DEBUG"
 }
@@ -63,9 +62,9 @@ model_output <-
                             adapt_delta = opt$adapt_delta,
                             max_treedepth = opt$max_treedepth,
                             verbose = opt$verbose
-                            )
+  )
 
-make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name)
+make_all_three_panel_plot(model_output)
 
-make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name)
+make_all_forecast_plots(model_output)
 
