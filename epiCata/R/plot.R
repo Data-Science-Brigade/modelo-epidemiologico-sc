@@ -37,13 +37,13 @@ plot_final_Rt <- function(model_output, auto_save=TRUE){
 
 #### 3-PANEL ####
 
-make_all_three_panel_plot <- function(model_output,aggregate_name){
+make_all_three_panel_plot <- function(model_output,aggregate_name=NULL){
   available_locations <- model_output$stan_list$available_locations
 
   for(location_name in available_locations){
     make_three_panel_plot(location_name, model_output, auto_save=TRUE)
   }
-  if(!missing(aggregate_name)){
+  if(!is.null(aggregate_name)){
     make_three_panel_plot(available_locations, model_output, auto_save=TRUE, location_name = aggregate_name)
   }
 }
@@ -361,13 +361,13 @@ plot_graph_C <- function(location_name, x_breaks, dfs){
 
 #### FORECAST ####
 
-make_all_forecast_plots <- function(model_output, aggregate_name){
+make_all_forecast_plots <- function(model_output, aggregate_name=NULL){
   available_locations <- model_output$stan_list$available_locations
 
   for(location_name in available_locations){
     make_forecast_plot(location_name, model_output, auto_save=TRUE)
   }
-  if(!missing(aggregate_name)){
+  if(!is.null(aggregate_name)){
     make_forecast_plot(available_locations, model_output, auto_save=TRUE, location_name = aggregate_name)
   }
 }
