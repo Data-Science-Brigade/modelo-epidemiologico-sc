@@ -44,28 +44,28 @@ make_all_three_panel_plot <- function(model_output,aggregate_name){
     make_three_panel_plot(location_name, model_output, auto_save=TRUE)
   }
   if(!missing(aggregate_name)){
-    make_three_panel_plot(available_locations, model_output, auto_save=TRUE, location_name = aggregate_name)
+    make_three_panel_plot(available_locations, model_output, auto_save=TRUE, aggregate_name = aggregate_name)
   }
 }
 
-make_three_panel_plot <- function(locations, model_output, auto_save=TRUE, min_x_break=NULL, location_name){
+make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, min_x_break=NULL, aggregate_name){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggplot2)
   require(scales)
   require(lubridate)
 
-  if(missing(location_name) && length(locations)==1) {
-    location_name <- locations[[1]]
+  if(missing(aggregate_name) && length(location_names)==1) {
+    aggregate_name <- location_names[[1]]
   }
 
-  cat(sprintf("\n> Making 3-plots panel for %s", location_name))
+  cat(sprintf("\n> Making 3-plots panel for %s", aggregate_name))
 
   reference_date_str <- model_output$reference_date_str
-  dfs <- if(length(locations)>1){
-    get_merged_forecast_dfs(locations, model_output, aggregate_name=location_name)
+  dfs <- if(length(location_names)>1){
+    get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
   } else {
-    get_merged_forecast_dfs(locations, model_output, aggregate_name=location_name)
+    get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
   }
 
 
@@ -96,26 +96,26 @@ make_three_panel_plot <- function(locations, model_output, auto_save=TRUE, min_x
 
   #### PLOTS ####
 
-  plot_A <- plot_graph_A(location_name, x_breaks, dfs)
+  plot_A <- plot_graph_A(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
-    plot_A_filename <- sprintf("figures/%s/GRAFICO_A_%s_%s.png", reference_date_str, location_name, model_output$filename_suffix)
+    plot_A_filename <- sprintf("figures/%s/GRAFICO_A_%s_%s.png", reference_date_str, aggregate_name, model_output$filename_suffix)
     cat(sprintf("\n   Saving %s", plot_A_filename))
     ggsave(file=plot_A_filename, plot_A, width = 6, height=4, type="cairo")
   }
 
-  plot_B <- plot_graph_B(location_name, x_breaks, dfs)
+  plot_B <- plot_graph_B(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
-    plot_B_filename <- sprintf("figures/%s/GRAFICO_B_%s_%s.png", reference_date_str, location_name, model_output$filename_suffix)
+    plot_B_filename <- sprintf("figures/%s/GRAFICO_B_%s_%s.png", reference_date_str, aggregate_name, model_output$filename_suffix)
     cat(sprintf("\n   Saving %s", plot_B_filename))
     ggsave(file=plot_B_filename, plot_B, width = 6, height=4, type="cairo")
   }
 
-  plot_C <- plot_graph_C(location_name, x_breaks, dfs)
+  plot_C <- plot_graph_C(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
-    plot_C_filename <- sprintf("figures/%s/GRAFICO_C_%s_%s.png", reference_date_str, location_name, model_output$filename_suffix)
+    plot_C_filename <- sprintf("figures/%s/GRAFICO_C_%s_%s.png", reference_date_str, aggregate_name, model_output$filename_suffix)
     cat(sprintf("\n   Saving %s", plot_C_filename))
     ggsave(file=plot_C_filename, plot_C, width = 9, height=4, type="cairo")
   }
@@ -123,7 +123,7 @@ make_three_panel_plot <- function(locations, model_output, auto_save=TRUE, min_x
   p <- cowplot::plot_grid(plot_A, plot_B, plot_C, ncol = 3, rel_widths = c(1.5, 1, 2))
 
 	if(auto_save){
-		plot_filename <- sprintf("figures/%s/3_PANEL_%s_%s.png", reference_date_str, location_name, model_output$filename_suffix)
+		plot_filename <- sprintf("figures/%s/3_PANEL_%s_%s.png", reference_date_str, aggregate_name, model_output$filename_suffix)
 		cat(sprintf("\n   Saving %s", plot_filename))
 		cowplot::save_plot(plot_filename, p, base_width=14)
 	}
@@ -368,11 +368,11 @@ make_all_forecast_plots <- function(model_output, aggregate_name){
     make_forecast_plot(location_name, model_output, auto_save=TRUE)
   }
   if(!missing(aggregate_name)){
-    make_forecast_plot(available_locations, model_output, auto_save=TRUE, location_name = aggregate_name)
+    make_forecast_plot(available_locations, model_output, auto_save=TRUE, aggregate_name = aggregate_name)
   }
 }
 
-make_forecast_plot <- function(locations, model_output, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, location_name){
+make_forecast_plot <- function(location_names, model_output, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, aggregate_name=NULL){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggrepel)
@@ -380,18 +380,14 @@ make_forecast_plot <- function(locations, model_output, auto_save=TRUE, min_y_br
   require(scales)
   require(lubridate)
 
-  if(missing(location_name) && length(locations)==1) {
-    location_name <- locations[[1]]
+  if(missing(aggregate_name) && length(location_names)==1) {
+    aggregate_name <- location_names[[1]]
   }
 
-  cat(sprintf("\n> Making forecast plots for %s", location_name))
+  cat(sprintf("\n> Making forecast plots for %s", aggregate_name))
 
   reference_date_str <- model_output$reference_date_str
-  dfs <- if(length(locations)>1){
-    get_merged_forecast_dfs(locations, model_output, aggregate_name=location_name)
-  } else {
-    get_merged_forecast_dfs(locations, model_output, aggregate_name=location_name)
-  }
+  dfs <- get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
 
   df_rts <- dfs$data_location %>% filter(row_number() == n()) %>% select(rt_min, rt, rt_max)
 
@@ -400,14 +396,14 @@ make_forecast_plot <- function(locations, model_output, auto_save=TRUE, min_y_br
                                   reference_date = ymd(reference_date_str))
 
   for(next_week in c(TRUE, FALSE)){
-    p <- make_cumulative_plot(location_name, cum_deaths, df_rts, ymd(reference_date_str), next_week=next_week,
+    p <- make_cumulative_plot(aggregate_name, cum_deaths, df_rts, ymd(reference_date_str), next_week=next_week,
                               min_y_break=min_y_break, max_y_break=max_y_break)
-    p <- p + ggtitle(paste0("(", location_name, ") Cenarios do Modelo do dia ", strftime(ymd(reference_date_str), "%d/%m/%Y")))
+    p <- p + ggtitle(paste0("(", aggregate_name, ") Cenarios do Modelo do dia ", strftime(ymd(reference_date_str), "%d/%m/%Y")))
 
     if(auto_save){
       plot_filename <- sprintf("figures/%s/FORECAST_%s_%s_%s.png",
                                reference_date_str,
-                               location_name,
+                               aggregate_name,
                                ifelse(next_week, "_week", ""),
                                model_output$filename_suffix, ".png")
       cat(sprintf("\n   Saving %s", plot_filename))
