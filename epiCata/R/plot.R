@@ -43,20 +43,22 @@ make_all_three_panel_plot <- function(model_output,aggregate_name=NULL){
   for(location_name in available_locations){
     make_three_panel_plot(location_name, model_output, auto_save=TRUE)
   }
-  if(!missing(aggregate_name)){
+  if(!is.null(aggregate_name)){
     make_three_panel_plot(available_locations, model_output, auto_save=TRUE, aggregate_name = aggregate_name)
   }
 }
 
-make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, min_x_break=NULL, aggregate_name){
+make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, min_x_break=NULL, aggregate_name=NULL){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggplot2)
   require(scales)
   require(lubridate)
 
-  if(missing(aggregate_name) && length(location_names)==1) {
+  if(is.null(aggregate_name) && length(location_names)==1) {
     aggregate_name <- location_names[[1]]
+  } else if(is.null(aggregate_name) && length(location_names)>1) {
+    stop("You must either pass an aggregate name or pass a single location")
   }
 
   cat(sprintf("\n> Making 3-plots panel for %s", aggregate_name))
@@ -367,7 +369,7 @@ make_all_forecast_plots <- function(model_output, aggregate_name=NULL){
   for(location_name in available_locations){
     make_forecast_plot(location_name, model_output, auto_save=TRUE)
   }
-  if(!missing(aggregate_name)){
+  if(!is.null(aggregate_name)){
     make_forecast_plot(available_locations, model_output, auto_save=TRUE, aggregate_name = aggregate_name)
   }
 }
@@ -382,6 +384,8 @@ make_forecast_plot <- function(location_names, model_output, auto_save=TRUE, min
 
   if(missing(aggregate_name) && length(location_names)==1) {
     aggregate_name <- location_names[[1]]
+  } else if(is.null(aggregate_name) && length(location_names)>1) {
+    stop("You must either pass an aggregate name or pass a single location")
   }
 
   cat(sprintf("\n> Making forecast plots for %s", aggregate_name))
