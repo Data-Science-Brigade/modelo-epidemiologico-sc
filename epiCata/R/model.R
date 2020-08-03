@@ -69,7 +69,9 @@ run_epidemiological_model <- function(model_name="base",
       }
   }else{
     covid_data <- read_covid_data(selected_date, reference_date=reference_date)
-    interventions <- read_interventions(selected_date, allowed_interventions=allowed_interventions)
+    # Interventions aren't updated anymore
+    #interventions <- read_interventions(selected_date, allowed_interventions=allowed_interventions)
+    interventions <- read_interventions(allowed_interventions=allowed_interventions)
     onset_to_death <- read_onset_to_death(selected_date)
     google_mobility <-
       if(use_google_mobility){
