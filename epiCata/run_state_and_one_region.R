@@ -22,7 +22,7 @@ option_list = list(
               help = "rstan::sample's verbosity. OVERRIDES: -m's setting"),
   make_option(c("-s", "--selected-date"), type = "character", default = NULL, dest = "selected_date",
               help = "Selected date for the model in ymd format. Will default to today if not passed."),
-  make_option(c("-r", "--reference-date"), type = "character", default = "2020-07-27", dest = "reference_date",
+  make_option(c("-r", "--reference-date"), type = "character", default = "2020-08-03", dest = "reference_date",
               help = "Reference date for the model in ymd format."),
   make_option(c("-g", "--use-google-mobility"), type = "logical", default = TRUE, dest = "use_google_mobility",
               help = "If we should use google mobility data for the model"),
