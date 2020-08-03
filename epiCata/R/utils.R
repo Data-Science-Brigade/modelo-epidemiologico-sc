@@ -107,13 +107,9 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
       # Index of the original data on the aggregate vector
       orig_agg_idx <- original_data_start:(original_data_start+original_data_length)
 
-      agg_reported_cases[orig_agg_idx] <-
-        agg_reported_cases[orig_agg_idx]+
-        original_data$casos
+      agg_reported_cases[orig_agg_idx] <- agg_reported_cases[orig_agg_idx] + original_data$casos
 
-      agg_reported_deaths[orig_agg_idx] <-
-        agg_reported_deaths[orig_agg_idx]+
-        original_data$obitos
+      agg_reported_deaths[orig_agg_idx] <- agg_reported_deaths[orig_agg_idx] + original_data$obitos
     }
     # Average on Rt
     rt <- rt/rt_n
@@ -258,13 +254,9 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
     original_data_length <- (max_original_data_date - min_original_data_date)
     orig_agg_idx <- original_data_start:(original_data_start+original_data_length)
 
-    agg_reported_cases[orig_agg_idx] <-
-      agg_reported_cases[orig_agg_idx]+
-      original_data$casos
+    agg_reported_cases[orig_agg_idx] <- agg_reported_cases[orig_agg_idx] + original_data$casos
 
-    agg_reported_deaths[orig_agg_idx] <-
-      agg_reported_deaths[orig_agg_idx]+
-      original_data$obitos
+    agg_reported_deaths[orig_agg_idx] <- agg_reported_deaths[orig_agg_idx] + original_data$obitos
   }
   # Average on Rt
   rt_samples <- rt_samples/rt_samples_n
