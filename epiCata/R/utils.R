@@ -28,38 +28,42 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
     location_start_date <- min(model_output$stan_list$dates[[i]])
     location_end_date <- max(model_output$stan_list$dates[[i]])
 
+    # Index of this location's start date in the aggregate vector
     loc_N_s <- 1 + as.integer((location_start_date - min_date))
+    # Length of this location's variable
     loc_N_l <- model_output$stan_list$stan_data$N[i]
 
+    # Indexes to be accessed in the aggregate vector
     agg_idx <- loc_N_s:(loc_N_s+loc_N_l-1)
+    # Indexes to be accessed in this location's data
     loc_idx <- 1:loc_N_l
 
 
-    prediction_samples[,agg_idx] <-
-      prediction_samples[,agg_idx] +
-      model_output$out$prediction[,loc_idx,i]
+    prediction_samples[,agg_idx] <- prediction_samples[,agg_idx] + model_output$out$prediction[,loc_idx,i]
 
-    estimated_deaths_samples[,agg_idx] <-
-      estimated_deaths_samples[,agg_idx] +
-      model_output$out$E_deaths[,loc_idx,i]
+    estimated_deaths_samples[,agg_idx] <- estimated_deaths_samples[,agg_idx] + model_output$out$E_deaths[,loc_idx,i]
 
-    rt_samples[,agg_idx] <-
-      rt_samples[,agg_idx] +
-      # model_output$out$Rt[,loc_idx,i] #Unweighted
-      model_output$out$Rt[,loc_idx,i] * model_output$stan_list$stan_data$pop[i] # Weighted by pop
+    # (UNUSED) Unweighted
+    #rt_samples[,agg_idx] <- rt_samples[,agg_idx] + model_output$out$Rt[,loc_idx,i]
+    # Weighted by pop
+    rt_samples[,agg_idx] <- rt_samples[,agg_idx] + model_output$out$Rt[,loc_idx,i] * model_output$stan_list$stan_data$pop[i]
 
-    rt_samples_n[,agg_idx] <-
-      rt_samples_n[,agg_idx] +
-      # 1 #Unweighted
-      model_output$stan_list$stan_data$pop[i] # Weighted by pop
+    # (UNUSED) Unweighted
+    #rt_samples_n[,agg_idx] <- rt_samples_n[,agg_idx] + 1
+    # Weighted by pop
+    rt_samples_n[,agg_idx] <- rt_samples_n[,agg_idx] + model_output$stan_list$stan_data$pop[i]
 
-    estimated_deaths_forecast_samples[,1:(forecast+1)] <-
-      estimated_deaths_samples[,1:(forecast+1)] +
-      model_output$out$E_deaths[,loc_N_l:(loc_N_l+forecast),i]
+    estimated_deaths_forecast_samples[,1:(forecast+1)] <- estimated_deaths_samples[,1:(forecast+1)] + model_output$out$E_deaths[,loc_N_l:(loc_N_l+forecast),i]
 
+    # (UNUSED) Getting cases and deaths from the data available for the model's input
+    #agg_reported_cases[agg_idx] <-agg_reported_cases[orig_agg_idx] + model_output$stan_list$reported_cases[[i]]
+    #agg_reported_deaths[agg_idx] <- agg_reported_deaths[orig_agg_idx] + model_output$stan_list$deaths_by_location[[i]]
 
-    original_data <- model_output$covid_data %>%
-      filter(location_name == location)
+    #### ORIGINAL DATA
+    # We'll get reported cases and deaths from the original covid data, since in
+    # the data preparation phase (`R/preprocessing/get_stan_data_for_location`),
+    # there is a filter that can remove some data before feeding it to the model.
+    original_data <- model_output$covid_data %>% filter(location_name == location)
 
     min_original_data_date <- min(original_data$data_ocorrencia)
     max_original_data_date <- min(max(original_data$data_ocorrencia), max_date)
@@ -67,17 +71,13 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
     original_data_length <- (max_original_data_date - min_original_data_date)
     orig_agg_idx <- original_data_start:(original_data_start+original_data_length)
 
-    #agg_reported_cases[agg_idx] <-
     agg_reported_cases[orig_agg_idx] <-
       agg_reported_cases[orig_agg_idx]+
       original_data$casos
-      #model_output$stan_list$reported_cases[[i]]
 
-    #agg_reported_deaths[agg_idx] <-
     agg_reported_deaths[orig_agg_idx] <-
       agg_reported_deaths[orig_agg_idx]+
       original_data$obitos
-      #model_output$stan_list$deaths_by_location[[i]]
   }
   # Average on Rt
   rt_samples <- rt_samples/rt_samples_n
@@ -111,10 +111,7 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
   rt_ui2 <- matrixStats::colQuantiles(rt_samples,probs=.75)
 
   data_location <- data.frame(
-                              #"time" = as_date((min_date + 0:(N-1))),
                               "time" = min_date + days(0:(N-1)),
-                              #"time" = seq(min_date, by = "day", length.out = N),
-                              #"time" = sapply(0:(N-1), function(x){as_date(min_date) + days(x)}),
                               "location_name" = rep(aggregate_name, N),
                               "reported_cases" = agg_reported_cases[(missingN+1):(missingN+N)],
                               "deaths" = agg_reported_deaths[(missingN+1):(missingN+N)],
