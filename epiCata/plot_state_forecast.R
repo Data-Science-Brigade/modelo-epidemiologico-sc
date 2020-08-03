@@ -1,9 +1,15 @@
 # FOLLOW UP
 
 library(epiCata)
+require(tidyverse)
+require(ggrepel)
+require(ggplot2)
+require(scales)
+require(lubridate)
 
 # Load latest model
-load("results/2020_07_20/2020_07_20_base_FULL_164994-stanfit.Rdata")
+load("results/results_2020_07_27_2020_07_27_base_FULL_1315767-stanfit.Rdata")
+location_name <- "SC_ESTADO"
 
 reference_date_str <- model_output$reference_date_str
 reference_date = ymd(reference_date_str)
@@ -89,4 +95,4 @@ plot_filename <- sprintf("figures/%s/FOLLOWUP_%s_%s.png",
                          location_name,
                          model_output$filename_suffix, ".png")
 cat(sprintf("\n   Saving %s", plot_filename))
-ggsave(file= plot_filename, p, width = 11.08, height=4.8, type="cairo")
+ggsave(file= plot_filename, pp, width = 11.08, height=4.8, type="cairo")
