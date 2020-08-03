@@ -31,8 +31,8 @@ option_list = list(
               help = "Reference date for the model in ymd format."),
   make_option(c("-g", "--use-google-mobility"), type = "logical", default = TRUE, dest = "use_google_mobility",
               help = "If we should use google mobility data for the model"),
-  make_option(c("-a", "--aggregate-name"), type = "character", default = NULL, dest = "aggregate_name",
-              help = "If we should aggregate the macro-region data into a state data for plotting an aggregate version, the name of the aggregate should be passed here."),
+  make_option(c("-a", "--aggregate-name"), type = "character", default = "SC_ESTADO", dest = "aggregate_name",
+              help = "If we should aggregate the macro-region data into a state data for plotting an aggregate version, the name of the aggregate should be passed here otherwise it will defalut to SC_ESTADO."),
   make_option(c("-l", "--allowed_locations"),
               default = default_locations, dest = "allowed_locations",
               help = sprintf("List of Allowed locations, the default is all macro-regions from the Santa Catarina state: %s", paste(default_locations, collapse=", ")))
