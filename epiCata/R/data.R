@@ -37,10 +37,18 @@ read_covid_data <- function(selected_date, start_pandemic=30, reference_date){
   cities_df <- cities_df %>% select(-min_date)
   cities_df$data_ocorrencia <- as_date(cities_df$data_ocorrencia)
 
-  cities_df <- cities_df %>% group_by(nom_regional, nom_municipio, data_ocorrencia) %>%
+  # Get healthregions and macrorregions
+  # FIXME: Joining by cod_municipio_ibge would be less error-prone
+  SC_pop <- read.csv("data-raw/SC_populacao_macrorregioes_regioesdesaude.csv") %>% select(-c(cod_municipio_ibge, qtd_populacao_estimada))
+  cities_df <- cities_df %>% select(-nom_regional) %>% left_join(SC_pop, by="nom_municipio")
+
+  cities_df <- cities_df %>% group_by(nom_regiaosaude, nom_regional, nom_municipio, data_ocorrencia) %>%
     summarise(casos=sum(casos), obitos=sum(obitos))
 
+
   #### COMPILE casos AND obitos FOR EACH CITY, REGION AND STATE ####
+  healthregions_df <- cities_df %>% group_by(nom_regiaosaude, data_ocorrencia) %>% summarise(casos=sum(casos), obitos=sum(obitos))
+
   macrorregions_df <- cities_df %>% group_by(nom_regional, data_ocorrencia) %>% summarise(casos=sum(casos), obitos=sum(obitos))
 
   state_df <- macrorregions_df %>% group_by(data_ocorrencia) %>% summarise(casos=sum(casos), obitos=sum(obitos))
@@ -49,6 +57,9 @@ read_covid_data <- function(selected_date, start_pandemic=30, reference_date){
   cities_df <- cities_df %>% ungroup %>%
     mutate(location_name=paste0("SC_MUN_", gsub(" ", "_", nom_municipio))) %>%
     select(location_name, data_ocorrencia, casos, obitos)
+  healthregions_df <- healthregions_df %>% ungroup %>%
+    mutate(location_name=paste0("SC_RSA_", gsub(" ", "_", nom_regiaosaude))) %>%
+    select(location_name, data_ocorrencia, casos, obitos)
   macrorregions_df <- macrorregions_df %>% ungroup %>%
     mutate(location_name=paste0("SC_MAC_", gsub(" ", "_", nom_regional))) %>%
     select(location_name, data_ocorrencia, casos, obitos)
@@ -56,7 +67,7 @@ read_covid_data <- function(selected_date, start_pandemic=30, reference_date){
     mutate(location_name="SC_ESTADO") %>%
     select(location_name, data_ocorrencia, casos, obitos)
 
-  df <- bind_rows(cities_df, macrorregions_df, state_df)
+  df <- bind_rows(cities_df, healthregions_df, macrorregions_df, state_df)
 
   #### FIX DATES ####
   # Dates that are NULL are attributed to the beginning of the epidemic in that location

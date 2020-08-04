@@ -1,4 +1,5 @@
 library(dplyr)
+library(usethis)
 
 #### code to prepare `serial_interval` dataset goes here ####
 
@@ -26,7 +27,7 @@ infection_to_onset <- data.frame(avg_days = 5.1, coeff_variation = 0.86)
 
 #### POPULATION OF SANTA CATARINA ####
 
-SC_pop <- read.csv("data-raw/SC_populacao_macrorregioes.csv")
+SC_pop <- read.csv("data-raw/SC_populacao_macrorregioes_regioesdesaude.csv")
 
 SC_pop_cities <- SC_pop %>%
   mutate(location_name=paste0("SC_MUN_", gsub(" ", "_", nom_municipio))) %>%
@@ -38,11 +39,16 @@ SC_pop_macrorregions <- SC_pop %>%
   mutate(location_name=paste0("SC_MAC_", gsub(" ", "_", nom_regional))) %>%
   select(location_name, pop)
 
+SC_pop_healthregions <- SC_pop %>%
+  group_by(nom_regiaosaude) %>% summarise(pop=sum(qtd_populacao_estimada)) %>% ungroup %>%
+  mutate(location_name=paste0("SC_RSA_", gsub(" ", "_", nom_regiaosaude))) %>%
+  select(location_name, pop)
+
 SC_pop_state <- SC_pop %>% summarise(pop=sum(qtd_populacao_estimada)) %>%
   mutate(location_name="SC_ESTADO") %>%
   select(location_name, pop)
 
-pop <- bind_rows(SC_pop_cities, SC_pop_macrorregions, SC_pop_state)
+pop <- bind_rows(SC_pop_cities, SC_pop_healthregions, SC_pop_macrorregions, SC_pop_state)
 
 #### CREATE GOOGLE MOBILITY ####
 
