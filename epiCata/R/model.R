@@ -7,55 +7,57 @@ NAMED_MODELS <- list(
     max_treedepth = list(FULL=15, DEBUG=5, DEVELOP=10)
 )
 
-run_epidemiological_model <- function(selected_date, model_name="base",
-                                      reference_date,
+run_epidemiological_model <- function(model_name="base",
+                                      selected_date=NULL,
+                                      reference_date=NULL,
                                       allowed_interventions=NULL,
-                                      allowed_locations,
+                                      allowed_locations=NULL,
                                       use_google_mobility=TRUE,
-                                      mode,
-                                      iter,
-                                      warmup,
-                                      chains,
-                                      adapt_delta,
-                                      max_treedepth,
-                                      verbose
+                                      mode=NULL,
+                                      iter=NULL,
+                                      warmup=NULL,
+                                      chains=NULL,
+                                      adapt_delta=NULL,
+                                      max_treedepth=NULL,
+                                      verbose=NULL
                                       ){
   require(rstan)
   require(lubridate)
 
-  if(missing(allowed_locations)){
+  if(is.null(allowed_locations)){
     stop("Must specify allowed locations")
   }
-  if(missing(mode) && any(missing(iter),missing(warmup),missing(chains),
-                          missing(adapt_delta),missing(max_treedepth),
-                          missing(verbose))) {
+
+  if(is.null(mode) && any(is.null(iter),is.null(warmup),is.null(chains),
+                          is.null(adapt_delta),is.null(max_treedepth),
+                          is.null(verbose))) {
     stop("epiCata/run_epidemiological_model: You should either specify mode or specify all model parameters")
-  } else if(!missing(mode) && any(!missing(iter),!missing(warmup),
-                                  !missing(chains),!missing(adapt_delta),
-                                  !missing(max_treedepth),!missing(verbose))) {
+  } else if(!is.null(mode) && any(!is.null(iter),!is.null(warmup),
+                                  !is.null(chains),!is.null(adapt_delta),
+                                  !is.null(max_treedepth),!is.null(verbose))) {
     warning("epiCata/run_epidemiological_model: Mode specified but a parameter was overriden, using the parameter instead of the mode's default")
   }
-  if(missing(mode)) {
+  if(is.null(mode)) {
     mode <- sprintf("CUSTOM-%s-%s-%s-%s-%s", iter, warmup, chains, adapt_delta, max_treedepth)
   } else {
-    if(missing(iter)){ iter <- NAMED_MODELS$iter[[mode]] }
-    if(missing(warmup)){ warmup <- NAMED_MODELS$warmup[[mode]] }
-    if(missing(chains)){ chains <- NAMED_MODELS$chains[[mode]] }
-    if(missing(adapt_delta)){ adapt_delta <- NAMED_MODELS$adapt_delta[[mode]] }
-    if(missing(max_treedepth)){ max_treedepth <- NAMED_MODELS$max_treedepth[[mode]] }
-    if(missing(verbose)){ verbose <- NAMED_MODELS$verbose[[mode]] }
+    if(is.null(iter)){ iter <- NAMED_MODELS$iter[[mode]] }
+    if(is.null(warmup)){ warmup <- NAMED_MODELS$warmup[[mode]] }
+    if(is.null(chains)){ chains <- NAMED_MODELS$chains[[mode]] }
+    if(is.null(adapt_delta)){ adapt_delta <- NAMED_MODELS$adapt_delta[[mode]] }
+    if(is.null(max_treedepth)){ max_treedepth <- NAMED_MODELS$max_treedepth[[mode]] }
+    if(is.null(verbose)){ verbose <- NAMED_MODELS$verbose[[mode]] }
   }
   mode_str <- sprintf("%s-%d-%d-%d-%f-%d", mode, iter, warmup, chains, adapt_delta, max_treedepth)
 
   # Read data
-  if(missing(reference_date)){
+  if(is.null(reference_date)){
     reference_date <- Sys.Date()
   }else{
     reference_date <- ymd(reference_date)
   }
 
   cat(sprintf("\nReading Data"))
-  if(missing(selected_date)){
+  if(is.null(selected_date)){
     covid_data <- read_covid_data(reference_date=reference_date)
     interventions <- read_interventions(allowed_interventions=allowed_interventions)
     onset_to_death <- read_onset_to_death()
@@ -67,7 +69,9 @@ run_epidemiological_model <- function(selected_date, model_name="base",
       }
   }else{
     covid_data <- read_covid_data(selected_date, reference_date=reference_date)
-    interventions <- read_interventions(selected_date, allowed_interventions=allowed_interventions)
+    # Interventions aren't updated anymore
+    #interventions <- read_interventions(selected_date, allowed_interventions=allowed_interventions)
+    interventions <- read_interventions(allowed_interventions=allowed_interventions)
     onset_to_death <- read_onset_to_death(selected_date)
     google_mobility <-
       if(use_google_mobility){
@@ -77,7 +81,7 @@ run_epidemiological_model <- function(selected_date, model_name="base",
       }
   }
 
-  if(!missing(allowed_locations)){
+  if(!is.null(allowed_locations)){
     covid_data <- covid_data %>% filter(location_name %in% allowed_locations)
   }
 

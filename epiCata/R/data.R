@@ -26,7 +26,7 @@ read_covid_data <- function(selected_date, start_pandemic=30, reference_date){
   cities_df$data_ocorrencia <- ymd(cities_df$data_ocorrencia)
 
   # Handle incorrect input: Assume any future dates were input incorrectly and are assigned to reference date
-  if(any(cities_df$data_ocorrencia > (reference_date - days(1)))){
+  if(any(cities_df$data_ocorrencia > (reference_date - days(1)), na.rm=T)){
     cities_df[which(cities_df$data_ocorrencia > (reference_date - days(1))), "data_ocorrencia"] <- reference_date - days(1)
   }
 
