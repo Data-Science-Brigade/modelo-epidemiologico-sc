@@ -449,7 +449,7 @@ get_forecast_dfs <- function(location_name, model_output, forecast=30){
   list(data_location=data_location, data_location_forecast=data_location_forecast)
 }
 
-round_y_breaks <- function(max_y_break, n_breaks=4){
+round_y_breaks <- function(max_y_break, n_breaks=4, min_y_break=0){
   n_integer_digits <- floor(log10(max_y_break)) - 1
   # Check if we only have two digits or less
   if(n_integer_digits<=0){
@@ -469,7 +469,7 @@ round_y_breaks <- function(max_y_break, n_breaks=4){
     #}
     # While the new max_y_break is not divisible by 5 times the number of breaks
     # And the second_base_first_digit is lower than 10
-    while(!near((((base+second_base)/n_breaks) %% 5),0) && second_base_first_digit<10) {
+    while(!near(((((base+second_base)-min_y_break)/n_breaks) %% 5),0) && second_base_first_digit<10) {
       second_base_first_digit <- second_base_first_digit+1
       second_base <- 10^(n_integer_digits) * second_base_first_digit
     }

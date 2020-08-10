@@ -480,7 +480,7 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
 
   if(is.null(max_y_break)){
     max_y_break <- max(cumulative_deaths$value)
-    max_y_break <- round_y_breaks(max_y_break)
+    max_y_break <- round_y_breaks(max_y_break, min_y_break=min_y_break)
   }
 
   y_separation <- floor(max_y_break - min_y_break)
