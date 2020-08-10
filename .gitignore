@@ -44,6 +44,7 @@ vignettes/*.pdf
 
 # Rstudio plots
 **/Rplots.pdf
+**/*.Rout
 **/*.out
 **/*.err
 
