@@ -8,7 +8,7 @@ require(scales)
 require(lubridate)
 
 # Load latest model
-load("results/results_2020_07_27_2020_07_27_base_FULL_1315767-stanfit.Rdata")
+load("results/2020_08_10_base_DEVELOP-800-200-4-0.950000-8_177301-stanfit.Rdata")
 location_name <- "SC_ESTADO"
 
 reference_date_str <- model_output$reference_date_str
@@ -41,7 +41,7 @@ names(color_vals) <- levels(cumulative_deaths$key)
 
 x_breaks_by <- "weeks"
 x_min <- ymd("2020-05-31")
-x_max <- ymd("2020-08-16")
+x_max <- ymd("2020-09-06")
 
 x_breaks <- seq(x_min, x_max,by=x_breaks_by)
 
@@ -72,7 +72,7 @@ y_separation <- floor(max_y_break - min_y_break)
 y_breaks <- seq(min_y_break, max_y_break + (y_separation %% 4), floor(y_separation/4))
 
 # Modify y_breaks manually if the above didn't produce any nicer results
-y_breaks <- seq(0, 2400, 400)
+y_breaks <- seq(0, 4400, 1100)
 
 pp <- p +
   geom_label(data=cumulative_deaths %>% filter(key == "Cenário Real", time >= ymd(reference_date)),
@@ -96,3 +96,4 @@ plot_filename <- sprintf("figures/%s/FOLLOWUP_%s_%s.png",
                          model_output$filename_suffix, ".png")
 cat(sprintf("\n   Saving %s", plot_filename))
 ggsave(file= plot_filename, pp, width = 11.08, height=4.8, type="cairo")
+
