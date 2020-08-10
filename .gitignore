@@ -43,7 +43,7 @@ vignettes/*.pdf
 .Rproj.user
 
 # Rstudio plots
-**/rplots.pdf
+**/Rplots.pdf
 **/*.out
 **/*.err
 
