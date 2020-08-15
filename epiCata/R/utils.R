@@ -1,5 +1,6 @@
 get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, aggregate_name=NULL) {
   require(lubridate)
+  require(tidyverse)
   if(length(location_names)>1){
     if(is.null(aggregate_name)){ aggregate_name <- "AGG" }
 
@@ -176,6 +177,7 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
 
 get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, forecast=30, aggregate_name=NULL) {
   require(lubridate)
+  require(tidyverse)
   if(is.null(aggregate_name)){
     aggregate_name <- if(length(location_names)==1) {
       location_names
