@@ -3,6 +3,7 @@
 plot_mu <- function(model_output, auto_save=TRUE){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(bayesplot)
+  require(ggplot2)
 
   mu <- (as.matrix(model_output$out$mu))
   colnames(mu) <- model_output$stan_list$available_locations
@@ -134,6 +135,10 @@ make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, 
 }
 
 plot_graph_A <- function(location_name, x_breaks, dfs){
+  require(tidyverse)
+  require(ggplot2)
+  require(scales)
+  require(lubridate)
 
   #### CREATE DATAFRAMES FOR 95% INTERVAL AND 50% INTERVAL ####
   data_cases_95 <- data.frame(dfs$data_location$time,
@@ -195,6 +200,10 @@ plot_graph_A <- function(location_name, x_breaks, dfs){
 }
 
 plot_graph_B <- function(location_name, x_breaks, dfs){
+  require(tidyverse)
+  require(ggplot2)
+  require(scales)
+  require(lubridate)
 
   #### CREATE DATAFRAMES FOR 95% INTERVAL AND 50% INTERVAL ####
   data_deaths_95 <- data.frame(dfs$data_location$time,
@@ -248,6 +257,10 @@ plot_graph_B <- function(location_name, x_breaks, dfs){
 }
 
 plot_graph_C <- function(location_name, x_breaks, dfs){
+  require(tidyverse)
+  require(ggplot2)
+  require(scales)
+  require(lubridate)
 
   #### CREATE DATAFRAMES FOR 95% INTERVAL AND 50% INTERVAL ####
   data_rt_95 <- data.frame(dfs$data_location$time,
@@ -423,6 +436,10 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
                                  next_week=FALSE,
                                  min_y_break=NULL,
                                  max_y_break=NULL){
+  require(tidyverse)
+  require(ggplot2)
+  require(scales)
+  require(lubridate)
 
   cumulative_deaths <- cumulative_deaths %>%
     gather("key" = key, "value" = value, -time) %>%
