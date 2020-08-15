@@ -115,7 +115,7 @@ make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, 
     ggsave(file=plot_B_filename, plot_B, width = 6, height=4, type="cairo")
   }
 
-  plot_C <- plot_graph_C(aggregate_name, x_breaks, dfs)
+  plot_C <- plot_graph_C(aggregate_name, model_output, x_breaks, dfs)
 
   if(auto_save){
     plot_C_filename <- sprintf("figures/%s/GRAFICO_C_%s_%s.png", reference_date_str, aggregate_name, model_output$filename_suffix)
@@ -256,7 +256,7 @@ plot_graph_B <- function(location_name, x_breaks, dfs){
   plot_B
 }
 
-plot_graph_C <- function(location_name, x_breaks, dfs){
+plot_graph_C <- function(location_name, model_output, x_breaks, dfs){
   require(tidyverse)
   require(ggplot2)
   require(scales)
@@ -326,8 +326,10 @@ plot_graph_C <- function(location_name, x_breaks, dfs){
   custom_font_size <-
     if(priority_separation){
       sapply(y_breaks, function(y_break){if(y_break %in% original_y_breaks){10}else{9}})
+    }else if(max(y_breaks)<=2){
+      sapply(y_breaks, function(y_break){if(y_break %in% original_y_breaks){10}else{9}})
     }else{
-      sapply(y_breaks, function(y_break){if(y_break %in% original_y_breaks){10}else{5.5}})
+      sapply(y_breaks, function(y_break){if(y_break %in% original_y_breaks){10}else{7}})
     }
 
   plot_C <- ggplot(dfs$data_location) +
