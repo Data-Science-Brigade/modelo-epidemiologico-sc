@@ -7,12 +7,9 @@ NAMED_MODELS <- list(
     max_treedepth = list(FULL=15, DEBUG=5, DEVELOP=10)
 )
 
-run_epidemiological_model <- function(model_name="base",
-                                      selected_date=NULL,
-                                      reference_date=NULL,
-                                      allowed_interventions=NULL,
-                                      allowed_locations=NULL,
-                                      use_google_mobility=TRUE,
+run_epidemiological_model <- function(stan_list,
+                                      nickname=NULL,
+                                      model_name="base",
                                       mode=NULL,
                                       iter=NULL,
                                       warmup=NULL,
@@ -24,9 +21,6 @@ run_epidemiological_model <- function(model_name="base",
   require(rstan)
   require(lubridate)
 
-  if(is.null(allowed_locations)){
-    stop("Must specify allowed locations")
-  }
 
   if(is.null(mode) && any(is.null(iter),is.null(warmup),is.null(chains),
                           is.null(adapt_delta),is.null(max_treedepth),
@@ -49,49 +43,6 @@ run_epidemiological_model <- function(model_name="base",
   }
   mode_str <- sprintf("%s-%d-%d-%d-%f-%d", mode, iter, warmup, chains, adapt_delta, max_treedepth)
 
-  # Read data
-  if(is.null(reference_date)){
-    reference_date <- Sys.Date()
-  }else{
-    reference_date <- ymd(reference_date)
-  }
-
-  cat(sprintf("\nReading Data"))
-  if(is.null(selected_date)){
-    covid_data <- read_covid_data(reference_date=reference_date)
-    interventions <- read_interventions(allowed_interventions=allowed_interventions)
-    onset_to_death <- read_onset_to_death()
-    google_mobility <-
-      if(use_google_mobility){
-        read_google_mobility()
-      }else{
-        NULL
-      }
-  }else{
-    covid_data <- read_covid_data(selected_date, reference_date=reference_date)
-    # Interventions aren't updated anymore
-    #interventions <- read_interventions(selected_date, allowed_interventions=allowed_interventions)
-    interventions <- read_interventions(allowed_interventions=allowed_interventions)
-    onset_to_death <- read_onset_to_death(selected_date)
-    google_mobility <-
-      if(use_google_mobility){
-        read_google_mobility(selected_date)
-      }else{
-        NULL
-      }
-  }
-
-  if(!is.null(allowed_locations)){
-    covid_data <- covid_data %>% filter(location_name %in% allowed_locations)
-  }
-
-  # Handle incorrect input: Assume any future dates were input incorrectly and are assigned to reference date
-  if(any(covid_data$data_ocorrencia > (reference_date - days(1)))){
-    covid_data[which(covid_data$data_ocorrencia > (reference_date - days(1))), "data_ocorrencia"] <- reference_date - days(1)
-  }
-
-  stan_list <- prepare_stan_data(covid_data, interventions, onset_to_death)
-
   model_filename <- sprintf("%s/stan-models/%s.stan", get_data_folder(), model_name)
   cat(sprintf("\nReading model: %s", model_filename))
   options(mc.cores = parallel::detectCores())
@@ -105,9 +56,13 @@ run_epidemiological_model <- function(model_name="base",
 
   out = rstan::extract(fit)
 
-  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=model_name, mode=mode_str, covid_data=covid_data)
+  if(!is.null(nickname)) {
+    mode_str <- sprintf("%s-%s", nickname, mode_str)
+  }
 
-  save_fitted_model(model_output, reference_date)
+  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=model_name, mode=mode_str)
+
+  model_output
 }
 
 save_fitted_model <- function(model_output, reference_date){

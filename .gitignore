@@ -41,3 +41,10 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 .Rproj.user
+
+# Rstudio plots
+**/Rplots.pdf
+**/*.Rout
+**/*.out
+**/*.err
+

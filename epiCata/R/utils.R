@@ -1,5 +1,156 @@
+run_model_with_opt <- function(opt, default_locations){
+  if(!is.null(opt$reference_date)) { opt$reference_date <- ymd(opt$reference_date) }
+
+  if(any(opt$allowed_locations != default_locations)) {
+    exit("Allowed locations not implemented yet")
+  }
+
+  if(all(is.null(opt$mode), is.null(opt$iter), is.null(opt$warmup), is.null(opt$chains),
+         is.null(opt$adapt_delta), is.null(opt$max_treedepth), is.null(opt$verbose))){
+    warning("No model parameter passed, running model in DEBUG mode")
+    opt$mode <- "DEBUG"
+  }
+
+  # Read data
+  cat(sprintf("\nReading Data"))
+  covid_data <- read_covid_data(opt$deaths, opt$population, opt$reference_date,
+                                allowed_locations = opt$allowed_locations)
+  interventions <- read_interventions(opt$interventions, allowed_interventions=NULL, #TODO?
+                                      google_mobility_filename = opt$google_mobility)
+  onset_to_death <- read_onset_to_death(opt$onset_to_death)
+  IFR <- read_IFR(opt$ifr)
+  serial_interval <- read_serial_interval(opt$serial_interval)
+  infection_to_onset <- read_infection_to_onset(opt$infection_to_onset)
+  population <- read_pop(opt$population)
+  stan_list <-
+    prepare_stan_data(covid_data,
+                      interventions,
+                      onset_to_death,
+                      IFR,
+                      serial_interval,
+                      infection_to_onset,
+                      population)
+
+  model_output <-
+    run_epidemiological_model(stan_list,
+                              mode = opt$mode,
+                              nickname = opt$nickname,
+                              iter = opt$iter,
+                              warmup = opt$warmup,
+                              chains = opt$chains,
+                              adapt_delta = opt$adapt_delta,
+                              max_treedepth = opt$max_treedepth,
+                              verbose = opt$verbose
+    )
+  model_output$covid_data <- covid_data
+  model_output <- save_fitted_model(model_output, opt$reference_date)
+
+  make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name)
+
+  make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name)
+
+  model_output
+}
+
+make_option_list <- function(default_locations,
+                             reference_date=NULL,
+                             aggregate_name=NULL,
+                             nickname=NULL,
+                             default_locations_text = "",
+                             deaths_csv = "deaths.csv",
+                             pop_csv = "pop_and_regions.csv",
+                             onset_to_death_csv = "onset_to_death.csv",
+                             interventions_xls = "interventions.xls", # FIXME? Use an open-source format?
+                             google_mobility_csv = "Global_Mobility_Report.csv",
+                             ifr_csv = "IFR.csv",
+                             serial_interval_csv = "serial_interval.csv"
+                             ) {
+  if(is.null(reference_date)) {
+    require(lubridate)
+    reference_date <- today()
+  }
+  require(optparse)
+
+  list(
+    make_option(c("-m", "--mode"),
+                type = "character", default = NULL, dest = "mode",
+                help = "Mode to run the model (FULL/DEBUG/DEVELOP). If not specified you must specify -i -w -c -d -t and -v"
+    ),
+    make_option(c("-i", "--iterations"),
+                type = "integer", default = NULL, dest = "iter",
+                help = "How many iterations to run the model with, the model takes samples using iterations-warmup iterations for each chain. OVERRIDES: -m's setting"
+    ),
+    make_option(c("-w", "--warmup"),
+                type = "integer", default = NULL, dest = "warmup",
+                help = "How many warmup iterations to run the model for, these iterations count towards the total number of iterations specified by -i. OVERRIDES: -m's setting"
+    ),
+    make_option(c("-c", "--chains"),
+                type = "integer", default = NULL, dest = "chains",
+                help = "How many of chains should be run. This uses multiple cores if your computer has them. OVERRIDES: -m's setting"
+    ),
+    make_option(c("-x", "--adapt-delta"),
+                type = "double", default = NULL, dest = "adapt_delta",
+                help = "Model's target acceptance rate. OVERRIDES: -m's setting"
+    ),
+    make_option(c("-t", "--max-treedepth"),
+                type = "integer", default = NULL, dest = "max_treedepth",
+                help = "The maximum treedepth the model will use when perfoming sampling. OVERRIDES: -m's setting"
+    ),
+    make_option(c("-v", "--verbose"),
+                type = "logical", default = NULL, dest = "verbose",
+                help = "rstan::sample's verbosity. OVERRIDES: -m's setting"
+    ),
+    make_option(c("-r", "--reference-date"),
+                type = "character", default = reference_date, dest = "reference_date",
+                help = sprintf("Reference date for the model in yyyy_mm_dd format. Will default to %s", reference_date)
+    ),
+    make_option(c("-l", "--allowed-locations"),
+                type = "character", default = default_locations, dest = "allowed_locations",
+                help = sprintf("List of Allowed locations, the default is%s: %s", default_locations_text, paste(default_locations, collapse=", "))
+    ),
+    make_option(c("-a", "--aggregate-name"),
+                type = "character", default = aggregate_name, dest = "aggregate_name",
+                help = sprintf("If we should aggregate the city data into a state data for plotting an aggregate version, the name of the aggregate should be passed here. If NULL it won't be used. Default: %s", ifelse(is.null(aggregate_name), "NULL", aggregate_name))
+    ),
+    make_option(c("-d", "--deaths"),
+                type = "character", default = deaths_csv, dest = "deaths",
+                help = sprintf("CSV file from which to read the deaths from. If not specified will default to %s", deaths_csv)
+    ),
+    make_option(c("-p", "--population"),
+                type = "character", default = pop_csv, dest = "population",
+                help = sprintf("CSV file from which to read the population and super-region data from. If not specified will default to %s", pop_csv)
+    ),
+    make_option(c("-o", "--onset-to-death"),
+                type = "character", default = onset_to_death_csv, dest = "onset_to_death",
+                help = sprintf("CSV file containing onset-to-death data for the model. The default is %s", onset_to_death_csv)
+    ),
+    make_option(c("-n", "--interventions"),
+                type = "character", default = interventions_xls, dest = "interventions",
+                help = sprintf("XLS file containing intervention data for the model. The default is %s", interventions_xls)
+    ),
+    make_option(c("-g", "--google-mobility"),
+                type = "character", default = google_mobility_csv, dest = "google_mobility",
+                help = sprintf("CSV file containing google mobility data for the model. The default is %s and if you do not wish to use google mobility data pass NULL", google_mobility_csv)
+    ),
+    make_option(c("-f", "--ifr"),
+                type = "character", default = ifr_csv, dest = "ifr",
+                help = sprintf("IFR CSV. The default is %s", ifr_csv)
+    ),
+    make_option(c("-s", "--serial-interval"),
+                type = "character", default = serial_interval_csv, dest = "serial_interval",
+                help = sprintf("Serial Interval CSV. The default is %s", serial_interval_csv)
+    ),
+    make_option(c("-z", "--nickname"),
+                type = "character", default = nickname, dest = "nickname",
+                help = sprintf("Model nickname to prepend to mode. If NULL it won't be used. Default: %s", ifelse(is.null(nickname), "NULL", nickname))
+    )
+  )
+}
+
+
 get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, aggregate_name=NULL) {
   require(lubridate)
+  require(tidyverse)
   if(length(location_names)>1){
     if(is.null(aggregate_name)){ aggregate_name <- "AGG" }
 
@@ -176,6 +327,7 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
 
 get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, forecast=30, aggregate_name=NULL) {
   require(lubridate)
+  require(tidyverse)
   if(is.null(aggregate_name)){
     aggregate_name <- if(length(location_names)==1) {
       location_names
@@ -449,7 +601,7 @@ get_forecast_dfs <- function(location_name, model_output, forecast=30){
   list(data_location=data_location, data_location_forecast=data_location_forecast)
 }
 
-round_y_breaks <- function(max_y_break, n_breaks=4){
+round_y_breaks <- function(max_y_break, n_breaks=4, min_y_break=0){
   n_integer_digits <- floor(log10(max_y_break)) - 1
   # Check if we only have two digits or less
   if(n_integer_digits<=0){
@@ -469,7 +621,7 @@ round_y_breaks <- function(max_y_break, n_breaks=4){
     #}
     # While the new max_y_break is not divisible by 5 times the number of breaks
     # And the second_base_first_digit is lower than 10
-    while(!near((((base+second_base)/n_breaks) %% 5),0) && second_base_first_digit<10) {
+    while(!near(((((base+second_base)-min_y_break)/n_breaks) %% 5),0) && second_base_first_digit<10) {
       second_base_first_digit <- second_base_first_digit+1
       second_base <- 10^(n_integer_digits) * second_base_first_digit
     }
