@@ -1,6 +1,6 @@
 #### INTERVENTIONS ####
 
-read_interventions <- function(interventions_filename, allowed_interventions=NULL, google_mobility_filename=NULL){
+read_interventions <- function(interventions_filename, allowed_interventions=NULL, google_mobility_filename=NULL, google_mobility_window_size=0){
   require(readxl)
   require(tidyverse)
   require(lubridate)
@@ -27,7 +27,7 @@ read_interventions <- function(interventions_filename, allowed_interventions=NUL
     }
   }
 
-  google_mobility <- read_google_mobility(google_mobility_filename)
+  google_mobility <- read_google_mobility(google_mobility_filename, window_size=google_mobility_window_size)
   if(!is.null(google_mobility)){
     interventions <- bind_rows(interventions, google_mobility)
   }

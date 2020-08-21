@@ -1,27 +1,28 @@
 run_model_with_opt <- function(opt, default_locations){
-  if(!is.null(opt$reference_date)) { opt$reference_date <- ymd(opt$reference_date) }
+  if(!is.null(opt[["reference_date"]])) { opt[["reference_date"]] <- ymd(opt[["reference_date"]]) }
 
-  if(any(opt$allowed_locations != default_locations)) {
+  if(any(opt[["allowed_locations"]] != default_locations)) {
     exit("Allowed locations not implemented yet")
   }
 
-  if(all(is.null(opt$mode), is.null(opt$iter), is.null(opt$warmup), is.null(opt$chains),
-         is.null(opt$adapt_delta), is.null(opt$max_treedepth), is.null(opt$verbose))){
+  if(all(is.null(opt[["mode"]]), is.null(opt[["iter"]]), is.null(opt[["warmup"]]), is.null(opt[["chains"]]),
+         is.null(opt[["adapt_delta"]]), is.null(opt[["max_treedepth"]]), is.null(opt[["verbose"]]))){
     warning("No model parameter passed, running model in DEBUG mode")
-    opt$mode <- "DEBUG"
+    opt[["mode"]] <- "DEBUG"
   }
 
   # Read data
   cat(sprintf("\nReading Data"))
-  covid_data <- read_covid_data(opt$deaths, opt$population, opt$reference_date,
-                                allowed_locations = opt$allowed_locations)
-  interventions <- read_interventions(opt$interventions, allowed_interventions=NULL, #TODO?
-                                      google_mobility_filename = opt$google_mobility)
-  onset_to_death <- read_onset_to_death(opt$onset_to_death)
-  IFR <- read_IFR(opt$ifr)
-  serial_interval <- read_serial_interval(opt$serial_interval)
-  infection_to_onset <- read_infection_to_onset(opt$infection_to_onset)
-  population <- read_pop(opt$population)
+  covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
+                                allowed_locations = opt[["allowed_locations"]])
+  interventions <- read_interventions(opt[["interventions"]], allowed_interventions=NULL, #TODO?
+                                      google_mobility_filename = opt[["google_mobility"]],
+                                      google_mobility_window_size = opt[["google_mobility_window_size"]])
+  onset_to_death <- read_onset_to_death(opt[["onset_to_death"]])
+  IFR <- read_IFR(opt[["ifr"]])
+  serial_interval <- read_serial_interval(opt[["serial_interval"]])
+  infection_to_onset <- read_infection_to_onset(opt[["infection_to_onset"]])
+  population <- read_pop(opt[["population"]])
   stan_list <-
     prepare_stan_data(covid_data,
                       interventions,
@@ -33,21 +34,21 @@ run_model_with_opt <- function(opt, default_locations){
 
   model_output <-
     run_epidemiological_model(stan_list,
-                              mode = opt$mode,
-                              nickname = opt$nickname,
-                              iter = opt$iter,
-                              warmup = opt$warmup,
-                              chains = opt$chains,
-                              adapt_delta = opt$adapt_delta,
-                              max_treedepth = opt$max_treedepth,
-                              verbose = opt$verbose
+                              mode = opt[["mode"]],
+                              nickname = opt[["nickname"]],
+                              iter = opt[["iter"]],
+                              warmup = opt[["warmup"]],
+                              chains = opt[["chains"]],
+                              adapt_delta = opt[["adapt_delta"]],
+                              max_treedepth = opt[["max_treedepth"]],
+                              verbose = opt[["verbose"]]
     )
-  model_output$covid_data <- covid_data
-  model_output <- save_fitted_model(model_output, opt$reference_date)
+  model_output[["covid_data"]] <- covid_data
+  model_output <- save_fitted_model(model_output, opt[["reference_date"]])
 
-  make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name)
+  make_all_three_panel_plot(model_output, aggregate_name = opt[["aggregate_name"]])
 
-  make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name)
+  make_all_forecast_plots(model_output, aggregate_name = opt[["aggregate_name"]])
 
   model_output
 }
@@ -62,6 +63,7 @@ make_option_list <- function(default_locations,
                              onset_to_death_csv = "onset_to_death.csv",
                              interventions_xls = "interventions.xls", # FIXME? Use an open-source format?
                              google_mobility_csv = "Global_Mobility_Report.csv",
+                             google_mobility_window_size = 0,
                              ifr_csv = "IFR.csv",
                              serial_interval_csv = "serial_interval.csv"
                              ) {
@@ -131,6 +133,10 @@ make_option_list <- function(default_locations,
     make_option(c("-g", "--google-mobility"),
                 type = "character", default = google_mobility_csv, dest = "google_mobility",
                 help = sprintf("CSV file containing google mobility data for the model. The default is %s and if you do not wish to use google mobility data pass NULL", google_mobility_csv)
+    ),
+    make_option(c("-k", "--google-mobility-window-size"),
+                type = "integer", default = google_mobility_window_size, dest = "google_mobility_window_size",
+                help = sprintf("Size of the window for the rolling average on google mobility data. The default is %d", google_mobility_window_size)
     ),
     make_option(c("-f", "--ifr"),
                 type = "character", default = ifr_csv, dest = "ifr",
