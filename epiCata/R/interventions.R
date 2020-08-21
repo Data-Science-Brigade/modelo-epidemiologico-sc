@@ -2,6 +2,7 @@
 
 read_interventions <- function(interventions_filename, allowed_interventions=NULL, google_mobility_filename=NULL){
   require(readxl)
+  require(tidyverse)
   require(lubridate)
 
   interventions <- readxl::read_excel(interventions_filename, 4)
@@ -33,12 +34,18 @@ read_interventions <- function(interventions_filename, allowed_interventions=NUL
 }
 
 #### GOOGLE MOBILITY ####
-read_google_mobility <- function(google_mobility_filename){
+google_mobility_window_summary <- function(mobility_data) {
+  summarise(mobility_data, start=min(DATA), end=max(DATA), ADERENCIA=mean(ADERENCIA))
+}
+
+read_google_mobility <- function(google_mobility_filename, window_size=0){
   if(is.null(google_mobility_filename)){
     NULL
   }else{
     require(readr)
+    require(tidyverse)
     require(lubridate)
+    require(slider)
     cols <- c("date",
               "retail_and_recreation_percent_change_from_baseline",
               "grocery_and_pharmacy_percent_change_from_baseline",
@@ -58,6 +65,24 @@ read_google_mobility <- function(google_mobility_filename){
       rename(DATA=date) %>%
       mutate(ADERENCIA=ADERENCIA/100)
 
-    mobility_long
+    mobility_ordered <- mobility_long %>% arrange(DATA)
+
+    groups <- unique(mobility_ordered$AREA)
+
+    # TODO: Group map?
+    mobility_slided_list <- list()
+    for(i in seq_along(groups)) {
+      group <- groups[[i]]
+      group_data <- mobility_ordered %>% filter(AREA==group)
+      slided_group_data <-
+        slide_period_dfr(group_data, group_data$DATA, "day", google_mobility_window_summary, .before=window_size) %>%
+        select(-start) %>%
+        rename(DATA=end)
+      slided_group_data[["AREA"]] <- group
+      mobility_slided_list[[i]] <- slided_group_data
+    }
+    mobility_slided <- bind_rows(mobility_slided_list) %>% relocate(AREA, .before=ADERENCIA)
+
+    mobility_slided
   }
 }
