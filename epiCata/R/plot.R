@@ -199,7 +199,7 @@ plot_graph_A <- function(location_name, x_breaks, dfs){
 
 }
 
-plot_graph_B <- function(location_name, x_breaks, dfs){
+plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=TRUE){
   require(tidyverse)
   require(ggplot2)
   require(scales)
@@ -220,10 +220,15 @@ plot_graph_B <- function(location_name, x_breaks, dfs){
   data_deaths <- rbind(data_deaths_95, data_deaths_50)
   levels(data_deaths$key) <- c("ninetyfive", "fifty")
 
-  data_deaths <- data_deaths %>%
-    filter(key == "fifty") %>% mutate(death_min=cumsum(death_min), death_max=cumsum(death_max))
-
-  data_location <- dfs$data_location %>% mutate(deaths_cum=cumsum(deaths))
+  if(is_cumulative) {
+    data_deaths <- data_deaths %>%
+      filter(key == "fifty") %>% mutate(death_min=cumsum(death_min), death_max=cumsum(death_max))
+    data_location <- dfs$data_location %>% mutate(deaths_cum=cumsum(deaths))
+  } else {
+    data_deaths <- data_deaths %>%
+      filter(key == "fifty") %>% mutate(death_min=death_min, death_max=death_max)
+    data_location <- dfs$data_location %>% mutate(deaths_cum=deaths)
+  }
 
   total_deaths <- max(data_location$deaths_cum)
 
