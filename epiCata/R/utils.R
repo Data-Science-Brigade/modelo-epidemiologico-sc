@@ -11,6 +11,15 @@ run_model_with_opt <- function(opt, default_locations){
     opt[["mode"]] <- "DEBUG"
   }
 
+  for(name in names(opt)){
+    print(name)
+    print(opt[[name]])
+    if(!is.null(opt[[name]]) && as.character(opt[[name]]) == "NULL"){
+      opt[[name]] <- NULL
+    }
+    print(opt[[name]])
+  }
+
   # Change \ to / in save_path
   opt[["save_path"]] <- gsub('\\\\', '/', opt[["save_path"]])
   # Add last slash since some functions expect it to be there

@@ -31,6 +31,8 @@ read_interventions <- function(interventions_filename, allowed_interventions=NUL
   if(!is.null(google_mobility)){
     interventions <- bind_rows(interventions, google_mobility)
   }
+
+  interventions
 }
 
 #### GOOGLE MOBILITY ####
