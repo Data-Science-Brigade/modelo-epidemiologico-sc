@@ -11,6 +11,14 @@ run_model_with_opt <- function(opt, default_locations){
     opt[["mode"]] <- "DEBUG"
   }
 
+  # Change \ to / in save_path
+  opt[["save_path"]] <- gsub('\\\\', '/', opt[["save_path"]])
+  # Add last slash since some functions expect it to be there
+  if(!endsWith(opt[["save_path"]], "/")) {
+    warning("Path passed did not have last slash, which is expected")
+    opt[["save_path"]] <- paste0(opt[["save_path"]], "/")
+  }
+
   # Read data
   cat(sprintf("\nReading Data"))
   covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
@@ -44,11 +52,11 @@ run_model_with_opt <- function(opt, default_locations){
                               verbose = opt[["verbose"]]
     )
   model_output[["covid_data"]] <- covid_data
-  model_output <- save_fitted_model(model_output, opt[["reference_date"]])
+  model_output <- save_fitted_model(model_output, opt[["reference_date"]], save_path=opt[["save_path"]])
 
-  make_all_three_panel_plot(model_output, aggregate_name = opt[["aggregate_name"]])
+  make_all_three_panel_plot(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
 
-  make_all_forecast_plots(model_output, aggregate_name = opt[["aggregate_name"]])
+  make_all_forecast_plots(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
 
   model_output
 }
@@ -65,7 +73,8 @@ make_option_list <- function(default_locations,
                              google_mobility_csv = "Global_Mobility_Report.csv",
                              google_mobility_window_size = 0,
                              ifr_csv = "IFR.csv",
-                             serial_interval_csv = "serial_interval.csv"
+                             serial_interval_csv = "serial_interval.csv",
+                             save_path = "../"
                              ) {
   if(is.null(reference_date)) {
     require(lubridate)
@@ -145,6 +154,10 @@ make_option_list <- function(default_locations,
     make_option(c("-s", "--serial-interval"),
                 type = "character", default = serial_interval_csv, dest = "serial_interval",
                 help = sprintf("Serial Interval CSV. The default is %s", serial_interval_csv)
+    ),
+    make_option(c("-b", "--save-path"),
+                type = "character", default = save_path, dest = "save_path",
+                help = sprintf("Path to save the /figures and /results folders. The default is %s", save_path)
     ),
     make_option(c("-z", "--nickname"),
                 type = "character", default = nickname, dest = "nickname",
