@@ -23,6 +23,12 @@ run_model_with_opt(opt,default_locations)
 
 make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name)
 
-make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name
+make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name)
 
-print("Done"))
+last_8_weeks = ymd(model_output$reference_date_str) - 8*7 - 1
+
+make_all_C_plot(model_output, aggregate_name = opt$aggregate_name, min_x_break=last_8_weeks)
+
+plot_state_forecast(model_output)
+
+print("Done")
