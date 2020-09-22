@@ -387,18 +387,18 @@ plot_graph_C <- function(location_name, model_output, x_breaks, dfs){
 
 #### FORECAST ####
 
-make_all_forecast_plots <- function(model_output, aggregate_name=NULL, save_path="./"){
+make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_break=NULL, max_y_break=NULL, save_path="./"){
   available_locations <- model_output$stan_list$available_locations
 
   for(location_name in available_locations){
-    make_forecast_plot(location_name, model_output, auto_save=TRUE, save_path=save_path)
+    make_forecast_plot(location_name, model_output, auto_save=TRUE, min_y_break=min_y_break, max_y_break=max_y_break, save_path=save_path)
   }
   if(!is.null(aggregate_name)){
-    make_forecast_plot(available_locations, model_output, auto_save=TRUE, aggregate_name = aggregate_name, save_path=save_path)
+    make_forecast_plot(available_locations, model_output, auto_save=TRUE, min_y_break=min_y_break, max_y_break=max_y_break, aggregate_name = aggregate_name, save_path=save_path)
   }
 }
 
-make_forecast_plot <- function(location_names, model_output, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, aggregate_name=NULL, save_path="./"){
+make_forecast_plot <- function(location_names, model_output, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, week_max_y_break=NULL, aggregate_name=NULL, save_path="./"){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggrepel)
@@ -425,7 +425,8 @@ make_forecast_plot <- function(location_names, model_output, auto_save=TRUE, min
 
   for(next_week in c(TRUE, FALSE)){
     p <- make_cumulative_plot(aggregate_name, cum_deaths, df_rts, ymd(reference_date_str), next_week=next_week,
-                              min_y_break=min_y_break, max_y_break=max_y_break)
+                              min_y_break=min_y_break,
+                              max_y_break=if(next_week && !is.null(week_max_y_break)){week_max_y_break}else{max_y_break})
     p <- p + ggtitle(paste0("(", aggregate_name, ") Cenarios do Modelo do dia ", strftime(ymd(reference_date_str), "%d/%m/%Y")))
 
     if(auto_save){
