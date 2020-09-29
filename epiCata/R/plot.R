@@ -200,7 +200,7 @@ plot_graph_A <- function(location_name, x_breaks, dfs){
 
 }
 
-plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=TRUE){
+plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=FALSE){
   require(tidyverse)
   require(ggplot2)
   require(scales)

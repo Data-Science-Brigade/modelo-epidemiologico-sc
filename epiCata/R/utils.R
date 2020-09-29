@@ -1,5 +1,6 @@
 run_model_with_opt <- function(opt, default_locations){
   if(!is.null(opt[["reference_date"]])) { opt[["reference_date"]] <- ymd(opt[["reference_date"]]) }
+  if(!is.null(opt[["start_date"]])) { opt[["start_date"]] <- ymd(opt[["start_date"]]) }
 
   if(any(opt[["allowed_locations"]] != default_locations)) {
     exit("Allowed locations not implemented yet")
@@ -30,8 +31,8 @@ run_model_with_opt <- function(opt, default_locations){
 
   # Read data
   cat(sprintf("\nReading Data"))
-  covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
-                                allowed_locations = opt[["allowed_locations"]])
+  covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["start_date"]],
+                                opt[["reference_date"]], allowed_locations = opt[["allowed_locations"]])
   interventions <- read_interventions(opt[["interventions"]], allowed_interventions=NULL, #TODO?
                                       google_mobility_filename = opt[["google_mobility"]],
                                       google_mobility_window_size = opt[["google_mobility_window_size"]])
@@ -72,6 +73,7 @@ run_model_with_opt <- function(opt, default_locations){
 
 make_option_list <- function(default_locations,
                              reference_date=NULL,
+                             start_date=NULL,
                              aggregate_name=NULL,
                              nickname=NULL,
                              default_locations_text = "",
@@ -88,6 +90,10 @@ make_option_list <- function(default_locations,
   if(is.null(reference_date)) {
     require(lubridate)
     reference_date <- today()
+  }
+  if(is.null(start_date)) {
+    require(lubridate)
+    start_date <- ymd("2020-01-01")
   }
   require(optparse)
 
@@ -119,6 +125,10 @@ make_option_list <- function(default_locations,
     make_option(c("-v", "--verbose"),
                 type = "logical", default = NULL, dest = "verbose",
                 help = "rstan::sample's verbosity. OVERRIDES: -m's setting"
+    ),
+    make_option(c("-q", "--start-date"),
+                type = "character", default = reference_date, dest = "start_date",
+                help = sprintf("Start date for the model in yyyy_mm_dd format. Will default to %s", start_date)
     ),
     make_option(c("-r", "--reference-date"),
                 type = "character", default = reference_date, dest = "reference_date",

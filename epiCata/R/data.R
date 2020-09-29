@@ -10,7 +10,7 @@ get_data_folder <- function(){
 #
 # TODO: Document it with Roxygen2
 #
-read_covid_data <- function(deaths_filename, population_filename, reference_date, start_pandemic=30, allowed_locations=NULL){
+read_covid_data <- function(deaths_filename, population_filename, start_date, reference_date, start_pandemic=30, allowed_locations=NULL){
   require(readr)
   require(tidyverse)
   require(lubridate)
@@ -26,6 +26,7 @@ read_covid_data <- function(deaths_filename, population_filename, reference_date
 
   # Filter any data beyond the reference date
   cities_df <- filter(cities_df, data_ocorrencia < reference_date)
+  cities_df <- filter(cities_df, data_ocorrencia >= start_date)
 
   min_date_df <- cities_df %>% group_by(nom_municipio) %>%
     summarise(min_date=min(data_ocorrencia, na.rm=T), .groups="drop")
