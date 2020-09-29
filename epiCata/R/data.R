@@ -10,7 +10,7 @@ get_data_folder <- function(){
 #
 # TODO: Document it with Roxygen2
 #
-read_covid_data <- function(deaths_filename, population_filename, start_date, reference_date, start_pandemic=30, allowed_locations=NULL){
+read_covid_data <- function(deaths_filename, population_filename, start_date, reference_date, start_pandemic=0, allowed_locations=NULL){
   require(readr)
   require(tidyverse)
   require(lubridate)

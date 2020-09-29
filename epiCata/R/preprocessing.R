@@ -112,7 +112,7 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   #      c_{1,m}=···=c_{6,m} ∼ Exponential(1τ), where τ∼Exponential(0.03).
   #    These seed infections are inferred in our Bayesian posterior distribution."
   idx_deaths_mark <- which(cumsum(location_data$obitos) >= 10)[1]
-  month_before_deaths_mark <- idx_deaths_mark - 30
+  month_before_deaths_mark <- idx_deaths_mark#idx_deaths_mark - 30
 
   cat(sprintf("   > First case was reported on day %d\n   > The 10th death happened on day %d\n",
                 which(location_data$casos > 0)[1],
