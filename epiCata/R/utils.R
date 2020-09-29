@@ -50,7 +50,9 @@ run_model_with_opt <- function(opt, default_locations){
                       population)
 
   init_model <- NULL
-  if(!is.null( opt[["model_init_filename"]])){
+  if(!is.null(opt[["model_init_filename"]])){
+    print("Initialising model with:")
+    print(opt[["model_init_filename"]])
     load(opt[["model_init_filename"]])
     init_model <- model_output$fit
     model_output <- NULL
