@@ -54,7 +54,7 @@ run_model_with_opt <- function(opt, default_locations){
     print("Initialising model with:")
     print(opt[["model_init_filename"]])
     load(opt[["model_init_filename"]])
-    init_model <- model_output$fit
+    init_model <- model_output
     model_output <- NULL
   }
 
