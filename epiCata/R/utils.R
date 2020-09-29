@@ -13,12 +13,9 @@ run_model_with_opt <- function(opt, default_locations){
   }
 
   for(name in names(opt)){
-    print(name)
-    print(opt[[name]])
     if(!is.null(opt[[name]]) && as.character(opt[[name]]) == "NULL"){
       opt[[name]] <- NULL
     }
-    print(opt[[name]])
   }
 
   # Change \ to / in save_path
