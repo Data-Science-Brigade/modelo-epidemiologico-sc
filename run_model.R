@@ -25,6 +25,6 @@ option_list <- make_option_list(default_locations,
 opt_parser <- OptionParser(option_list=option_list);
 opt <- parse_args(opt_parser);
 
-run_model_with_opt(opt,default_locations)
+model_output <- run_model_with_opt(opt,default_locations)
 
 print("Done")
