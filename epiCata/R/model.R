@@ -62,24 +62,24 @@ run_epidemiological_model <- function(stan_list,
     }
     init_chains <- length(init)
     chain_length <- dim(to_init[["mu"]])[1]/to_init_chains
-    c <- 0
-    while(c<init_chains){
-      print(names(init[[c+1]]))
-      for(name in names(init[[c+1]])){
-        idx <- (1+chain_length*c):(chain_length*(c+1))
+    n_chains <- 0
+    while(n_chains<init_chains){
+      print(names(init[[n_chains+1]]))
+      for(name in names(init[[n_chains+1]])){
+        idx <- (1+chain_length*n_chains):(chain_length*(n_chains+1))
         dims <- dim(to_init[[name]])
         if(length(dims)==1){
-          init[[c+1]][[name]] <- mean(to_init[[name]][idx])
+          init[[n_chains+1]][[name]] <- mean(to_init[[name]][idx])
         } else if(length(dims)==2){
-          init[[c+1]][[name]][1:dims[2]] <- mean(to_init[[name]][idx,1:dims[2]])
+          init[[n_chains+1]][[name]][1:dims[2]] <- mean(to_init[[name]][idx,1:dims[2]])
         } else if(length(dims)==3){
-          init[[c+1]][[name]][1:dims[2],1:dims[3]] <- mean(to_init[[name]][idx,1:dims[2],1:dims[3]])
+          init[[n_chains+1]][[name]][1:dims[2],1:dims[3]] <- mean(to_init[[name]][idx,1:dims[2],1:dims[3]])
         } else {
           error("Wrong number of dimensions in init vector")
         }
          #<- apply(, 1, function(array){(array[])})
       }
-      c <- c+1
+      n_chains <- n_chains+1
     }
   }
   fit <- rstan::sampling(model, data=stan_list$stan_data, iter=iter, warmup=warmup, chains=chains, verbose=verbose,
