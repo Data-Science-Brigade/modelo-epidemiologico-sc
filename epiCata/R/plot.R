@@ -457,6 +457,7 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
   cumulative_deaths <- cumulative_deaths %>%
     gather("key" = key, "value" = value, -time) %>%
     filter(time >= ymd(reference_date) - days(1)) %>% drop_na()
+  #cumulative_deaths["value"] <- cumulative_deaths["value"] - min(cumulative_deaths["value"], na.rm = TRUE)
 
   if(is.null(df_rts)){
     fill_labels <- c("Cenario 1", "Cenario 2", "Cenario 3", "Obitos confirmados")
@@ -485,6 +486,8 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
       max(cumulative_deaths$time)
     }
 
+  #print(x_min)
+  #print(x_max)
   x_breaks <- seq(x_min, x_max,by=x_breaks_by)
   cumulative_deaths <- cumulative_deaths %>% filter(time >= ymd(reference_date) - days(1))
 
@@ -503,18 +506,21 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
                       color='#FCFCFC', fill='#C8255f', size=4, show.legend = FALSE)
 
   if(is.null(min_y_break)){
-    min_y_break <- min(cumulative_deaths$value)
+    min_y_break <- min(cumulative_deaths$value, na.rm=TRUE)
     n_integer_digits <- floor(log10(min_y_break)) + 1
     min_y_break <- floor(min_y_break/10^(n_integer_digits - 1)) * 10^(n_integer_digits - 1)
   }
 
   if(is.null(max_y_break)){
-    max_y_break <- max(cumulative_deaths$value)
+    max_y_break <- max(cumulative_deaths$value, na.rm=TRUE)
     max_y_break <- round_y_breaks(max_y_break, min_y_break=min_y_break)
   }
 
   y_separation <- floor(max_y_break - min_y_break)
 
+  #print(min_y_break)
+  #print(max_y_break + (y_separation %% 4))
+  #print(floor(y_separation/4))
   y_breaks <- seq(min_y_break, max_y_break + (y_separation %% 4), floor(y_separation/4))
   print(y_breaks)
   print(y_separation)
