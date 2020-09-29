@@ -16,7 +16,8 @@ run_epidemiological_model <- function(stan_list,
                                       chains=NULL,
                                       adapt_delta=NULL,
                                       max_treedepth=NULL,
-                                      verbose=NULL
+                                      verbose=NULL,
+                                      init_model=NULL
                                       ){
   require(rstan)
   require(lubridate)
@@ -51,8 +52,13 @@ run_epidemiological_model <- function(stan_list,
 
   cat(sprintf("\nRunning in mode %s", mode_str))
 
+  init <- if(!is.null(init_model)){
+    rstan::get_posterior_mean(init_model)
+  } else {
+    "random"
+  }
   fit <- rstan::sampling(model, data=stan_list$stan_data, iter=iter, warmup=warmup, chains=chains, verbose=verbose,
-               control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth))
+               control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth), init=init)
 
   out = rstan::extract(fit)
 
