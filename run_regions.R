@@ -23,7 +23,14 @@ model_output <- run_model_with_opt(opt,default_locations)
 
 make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name)
 
-make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name)
+mi <- list(SC_ESTADO=NULL, SC_MAC_ALTO_VALE_DO_ITAJAI=NULL, SC_MAC_FOZ_DO_RIO_ITAJAI=NULL, SC_MAC_GRANDE_FLORIANOPOLIS=NULL,
+           SC_MAC_GRANDE_OESTE=NULL, SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE=NULL, SC_MAC_PLANALTO_NORTE_E_NORDESTE=NULL, SC_MAC_SUL=NULL)
+wma <- list(SC_ESTADO=NULL, SC_MAC_ALTO_VALE_DO_ITAJAI=NULL, SC_MAC_FOZ_DO_RIO_ITAJAI=NULL, SC_MAC_GRANDE_FLORIANOPOLIS=NULL,
+            SC_MAC_GRANDE_OESTE=NULL, SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE=NULL, SC_MAC_PLANALTO_NORTE_E_NORDESTE=NULL, SC_MAC_SUL=NULL)
+ma <- list(SC_ESTADO=NULL, SC_MAC_ALTO_VALE_DO_ITAJAI=NULL, SC_MAC_FOZ_DO_RIO_ITAJAI=NULL, SC_MAC_GRANDE_FLORIANOPOLIS=NULL,
+           SC_MAC_GRANDE_OESTE=NULL, SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE=NULL, SC_MAC_PLANALTO_NORTE_E_NORDESTE=NULL, SC_MAC_SUL=NULL)
+
+make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name, min_y_breaks=mi, max_y_breaks=ma, week_max_y_breaks=wma)
 
 last_8_weeks = ymd(model_output$reference_date_str) - 8*7 - 1
 
