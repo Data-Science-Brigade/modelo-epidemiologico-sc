@@ -16,7 +16,8 @@ run_epidemiological_model <- function(stan_list,
                                       chains=NULL,
                                       adapt_delta=NULL,
                                       max_treedepth=NULL,
-                                      verbose=NULL
+                                      verbose=NULL,
+                                      init_model=NULL
                                       ){
   require(rstan)
   require(lubridate)
@@ -51,8 +52,38 @@ run_epidemiological_model <- function(stan_list,
 
   cat(sprintf("\nRunning in mode %s", mode_str))
 
+  init <- "random"
+  if(!is.null(init_model)){
+    init <- rstan::get_inits(init_model$fit)
+    to_init <- init_model$out
+    to_init_chains <- length(init)
+    if(chains<to_init_chains){
+      init <- init[1:chains]
+    }
+    init_chains <- length(init)
+    chain_length <- dim(to_init[["mu"]])[1]/to_init_chains
+    n_chains <- 0
+    while(n_chains<init_chains){
+      print(names(init[[n_chains+1]]))
+      for(name in names(init[[n_chains+1]])){
+        idx <- (1+chain_length*n_chains):(chain_length*(n_chains+1))
+        dims <- dim(to_init[[name]])
+        if(length(dims)==1){
+          init[[n_chains+1]][[name]] <- mean(to_init[[name]][idx])
+        } else if(length(dims)==2){
+          init[[n_chains+1]][[name]][1:dims[2]] <- mean(to_init[[name]][idx,1:dims[2]])
+        } else if(length(dims)==3){
+          init[[n_chains+1]][[name]][1:dims[2],1:dims[3]] <- mean(to_init[[name]][idx,1:dims[2],1:dims[3]])
+        } else {
+          error("Wrong number of dimensions in init vector")
+        }
+         #<- apply(, 1, function(array){(array[])})
+      }
+      n_chains <- n_chains+1
+    }
+  }
   fit <- rstan::sampling(model, data=stan_list$stan_data, iter=iter, warmup=warmup, chains=chains, verbose=verbose,
-               control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth))
+               control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth), init=init)
 
   out = rstan::extract(fit)
 

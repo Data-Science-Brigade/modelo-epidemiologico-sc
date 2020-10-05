@@ -387,14 +387,44 @@ plot_graph_C <- function(location_name, model_output, x_breaks, dfs){
 
 #### FORECAST ####
 
-make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_break=NULL, max_y_break=NULL, save_path="./"){
+make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_breaks=NULL, max_y_breaks=NULL, week_max_y_breaks=NULL, save_path="./"){
   available_locations <- model_output$stan_list$available_locations
 
   for(location_name in available_locations){
-    make_forecast_plot(location_name, model_output, auto_save=TRUE, min_y_break=min_y_break, max_y_break=max_y_break, save_path=save_path)
+    min_y_break <- if(!is.null(min_y_breaks) && length(min_y_breaks)>1){
+      min_y_breaks[[location_name]]
+    } else {
+      min_y_breaks
+    }
+    max_y_break <- if(!is.null(max_y_breaks) && length(max_y_breaks)>1){
+      max_y_breaks[[location_name]]
+    } else {
+      max_y_breaks
+    }
+    week_max_y_break <- if(!is.null(week_max_y_breaks) && length(week_max_y_breaks)>1){
+      week_max_y_breaks[[location_name]]
+    } else {
+      week_max_y_breaks
+    }
+    make_forecast_plot(location_name, model_output, auto_save=TRUE, min_y_break=min_y_break, max_y_break=max_y_break, week_max_y_break=week_max_y_break ,save_path=save_path)
   }
   if(!is.null(aggregate_name)){
-    make_forecast_plot(available_locations, model_output, auto_save=TRUE, min_y_break=min_y_break, max_y_break=max_y_break, aggregate_name = aggregate_name, save_path=save_path)
+    min_y_break <- if(!is.null(min_y_breaks) && length(min_y_breaks)>1){
+      min_y_breaks[[aggregate_name]]
+    } else {
+      min_y_breaks
+    }
+    max_y_break <- if(!is.null(max_y_breaks) && length(max_y_breaks)>1){
+      max_y_breaks[[aggregate_name]]
+    } else {
+      max_y_breaks
+    }
+    week_max_y_break <- if(!is.null(week_max_y_breaks) && length(week_max_y_breaks)>1){
+      week_max_y_breaks[[aggregate_name]]
+    } else {
+      week_max_y_breaks
+    }
+    make_forecast_plot(available_locations, model_output, auto_save=TRUE, min_y_break=min_y_break, max_y_break=max_y_break, week_max_y_break=week_max_y_break, aggregate_name = aggregate_name, save_path=save_path)
   }
 }
 
@@ -515,7 +545,8 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
 
   y_separation <- floor(max_y_break - min_y_break)
 
-  y_breaks <- seq(min_y_break, max_y_break + (y_separation %% 4), floor(y_separation/4))
+  #y_breaks <- seq(min_y_break, max_y_break + (y_separation %% 4), floor(y_separation/4))
+  y_breaks <- seq(min_y_break, max_y_break, floor(y_separation/4))
   print(y_breaks)
   print(y_separation)
 

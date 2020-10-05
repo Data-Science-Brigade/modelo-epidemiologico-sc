@@ -49,6 +49,15 @@ run_model_with_opt <- function(opt, default_locations){
                       infection_to_onset,
                       population)
 
+  init_model <- NULL
+  if(!is.null(opt[["model_init_filename"]])){
+    print("Initialising model with:")
+    print(opt[["model_init_filename"]])
+    load(opt[["model_init_filename"]])
+    init_model <- model_output
+    model_output <- NULL
+  }
+
   model_output <-
     run_epidemiological_model(stan_list,
                               mode = opt[["mode"]],
@@ -58,7 +67,8 @@ run_model_with_opt <- function(opt, default_locations){
                               chains = opt[["chains"]],
                               adapt_delta = opt[["adapt_delta"]],
                               max_treedepth = opt[["max_treedepth"]],
-                              verbose = opt[["verbose"]]
+                              verbose = opt[["verbose"]],
+                              init_model = init_model
     )
   model_output[["covid_data"]] <- covid_data
   model_output <- save_fitted_model(model_output, opt[["reference_date"]], save_path=opt[["save_path"]])
@@ -83,7 +93,8 @@ make_option_list <- function(default_locations,
                              google_mobility_window_size = 0,
                              ifr_csv = "IFR.csv",
                              serial_interval_csv = "serial_interval.csv",
-                             save_path = "../"
+                             save_path = "../",
+                             model_init_filename = NULL
                              ) {
   if(is.null(reference_date)) {
     require(lubridate)
@@ -171,6 +182,10 @@ make_option_list <- function(default_locations,
     make_option(c("-z", "--nickname"),
                 type = "character", default = nickname, dest = "nickname",
                 help = sprintf("Model nickname to prepend to mode. If NULL it won't be used. Default: %s", ifelse(is.null(nickname), "NULL", nickname))
+    ),
+    make_option(c("-e", "--model_init_filename"),
+                type = "character", default = model_init_filename, dest = "model_init_filename",
+                help = sprintf("Model to init from. If NULL it won't be used. Default: %s", ifelse(is.null(model_init_filename), "NULL", model_init_filename))
     )
   )
 }
