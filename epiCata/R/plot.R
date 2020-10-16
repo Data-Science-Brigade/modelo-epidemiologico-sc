@@ -288,7 +288,7 @@ plot_graph_C <- function(location_name, model_output, x_breaks, dfs){
   max_rt <- ceiling(max(data_rt$rt_max))
   ##### CHANGE POINTS ####
   n_features <- model_output$stan_list$interventions_wide$AREA %>% n_distinct()
-  if(n_features <= 6){
+  if(n_features>1 && n_features <= 6){
 
     changepoints_df <-
       model_output$stan_list$interventions_wide %>% group_by(AREA) %>%
@@ -363,7 +363,7 @@ plot_graph_C <- function(location_name, model_output, x_breaks, dfs){
       legend.spacing=unit(0, "points")
     )
 
-  plot_C <- if(n_features <= 6){
+  plot_C <- if(n_features>1 && n_features <= 6){
     plot_C +
       geom_segment(data = changepoints_df,
                    aes(x = DATA, y = 0, xend = DATA, yend=max(x)),

@@ -32,9 +32,10 @@ run_model_with_opt <- function(opt, default_locations){
   cat(sprintf("\nReading Data"))
   covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
                                 allowed_locations = opt[["allowed_locations"]])
-  interventions <- read_interventions(opt[["interventions"]], allowed_interventions=NULL, #TODO?
-                                      google_mobility_filename = opt[["google_mobility"]],
-                                      google_mobility_window_size = opt[["google_mobility_window_size"]])
+  interventions <- NULL
+  #interventions <- read_interventions(opt[["interventions"]], allowed_interventions=NULL, #TODO?
+  #                                    google_mobility_filename = opt[["google_mobility"]],
+  #                                    google_mobility_window_size = opt[["google_mobility_window_size"]])
   onset_to_death <- read_onset_to_death(opt[["onset_to_death"]])
   IFR <- read_IFR(opt[["ifr"]])
   serial_interval <- read_serial_interval(opt[["serial_interval"]])

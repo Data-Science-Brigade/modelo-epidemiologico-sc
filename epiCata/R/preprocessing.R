@@ -26,18 +26,23 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
   #### INTERVENTIONS ####
 
   # A join with all_dates_df will ensure that all dates are represented
-  all_dates <- seq(min(covid_data$data_ocorrencia), max(covid_data$data_ocorrencia), by = '1 day')
-  all_dates_df <- expand.grid(unique(interventions$AREA), all_dates)
-  colnames(all_dates_df) <- c("AREA", "DATA")
-  common_interventions <- interventions %>%
-    right_join(all_dates_df) %>%
-    arrange(AREA, DATA, ADERENCIA) %>%
-    group_by(AREA) %>%
-    fill(ADERENCIA, .direction="down") %>%
-    replace_na(list(ADERENCIA=0)) %>%
-    tidyr::spread(AREA, ADERENCIA)
+  if(!is.null(interventions)){
+    all_dates <- seq(min(covid_data$data_ocorrencia), max(covid_data$data_ocorrencia), by = '1 day')
+    all_dates_df <- expand.grid(unique(interventions$AREA), all_dates)
+    colnames(all_dates_df) <- c("AREA", "DATA")
+    common_interventions <- interventions %>%
+      right_join(all_dates_df) %>%
+      arrange(AREA, DATA, ADERENCIA) %>%
+      group_by(AREA) %>%
+      fill(ADERENCIA, .direction="down") %>%
+      replace_na(list(ADERENCIA=0)) %>%
+      tidyr::spread(AREA, ADERENCIA)
+    n_covariates <- common_interventions %>% ncol - 1
+  } else {
+    common_interventions <- NULL
+    n_covariates <- 1
+  }
 
-  n_covariates <- common_interventions %>% ncol - 1
 
   #### BUILD STAN DATA ####
   dates <- list()
@@ -50,6 +55,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
 
   # Covariates array
   stan_data$X = array(NA, dim = c(stan_data$M , stan_data$N2 ,stan_data$P ))
+  stan_data$X[1:stan_data$M,1:stan_data$N2,1:stan_data$P] = 0
 
   i <- 1
   for(location_name in available_locations){
@@ -71,7 +77,9 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
     stan_data$deaths <- cbind(stan_data$deaths, result_list$deaths)
     stan_data$cases <- cbind(stan_data$cases, result_list$cases)
 
-    stan_data$X[i,,] <- result_list$location_covariates
+    if(!is.null(result_list$location_covariates)){
+      stan_data$X[i,,] <- result_list$location_covariates
+    }
     i <- i + 1
 
     if(length(stan_data$N) == 1) {
@@ -136,9 +144,13 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   }
 
   #### INTERVENTIONS ####
-  location_covariates <- common_interventions %>% filter(DATA >= min(location_data$data_ocorrencia))
-  location_covariates[N:(N + location_forecast),] <- location_covariates[N,]
-  location_covariates <- location_covariates %>% select(-DATA) %>% as.matrix()
+  if(!is.null(common_interventions)){
+    location_covariates <- common_interventions %>% filter(DATA >= min(location_data$data_ocorrencia))
+    location_covariates[N:(N + location_forecast),] <- location_covariates[N,]
+    location_covariates <- location_covariates %>% select(-DATA) %>% as.matrix()
+  } else {
+    location_covariates <- NULL
+  }
 
   #### CONVOLUTION ####
   # IFR is the overall probability of dying given infection
