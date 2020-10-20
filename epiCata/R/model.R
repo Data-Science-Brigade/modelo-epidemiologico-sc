@@ -9,7 +9,7 @@ NAMED_MODELS <- list(
 
 run_epidemiological_model <- function(stan_list,
                                       nickname=NULL,
-                                      model_name="base",
+                                      model_name="base-infections",
                                       mode=NULL,
                                       iter=NULL,
                                       warmup=NULL,
