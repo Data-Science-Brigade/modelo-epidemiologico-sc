@@ -1,0 +1,219 @@
+---
+title: "How does the population of a macro-region in Santa Catarina relate to covid-19 spreading?"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+## Context
+
+In the following paper published on PLOS ONE: 
+
+> Ribeiro HV, Sunahara AS, Sutton J, Perc M, Hanley QS (2020) City size and the spreading of COVID-19 in Brazil. PLoS ONE 15(9): e0239699. https://doi.org/10.1371/journal.pone.0239699
+
+the authors show that there is a relationship between the growth of Covid-19 cases/deaths and the total population of a city.
+
+Their main findings were:
+
+- *Small towns are proportionally more affected by COVID-19 during the initial spread of the disease, such that the cumulative numbers of cases and deaths percapita initially decrease with population size.*
+- *However, during the long-term course of the pandemic, this urban advantage vanishes and large cities start to exhibit higher incidence of cases and deaths, such that every 1% rise in population is associated with a 0.14% increase in the number of fatalities percapita after about four months since the first two daily deaths.*
+
+Here, I will investigate whether the same relation can be found when looking at the seven macro-regions of Santa Catarina, as delimited by the Secretary of Health of the state.
+
+## Load the data
+
+Data was obtained on 23/10/2020 via [Plataforma Boa Vista](https://www.sc.gov.br/boavista/), the state-run big data platform that consolidates data about covid19 in Santa Catarina. Login credentials and access to anonymised data was provided to our data scientists at Data Science Brigade by CIASC-SC.
+
+```{r, message=FALSE}
+library(lubridate)
+library(dplyr)
+
+data_sc <- readr::read_csv("2020_10_22_dados_diarios_compilados.csv")
+# Some dates were input correctly as the year 2002 instead of 2020
+data_sc$data_ocorrencia <- gsub("2002", "2020", data_sc$data_ocorrencia)
+data_sc$data_ocorrencia <- as.Date(data_sc$data_ocorrencia)
+
+data_sc <- data_sc %>% filter(!nom_municipio %in% c("OUTROS ESTADOS", "OUTROS PAISES"))
+
+abr_nom_regional <-
+  structure(list(nom_regional = structure(1:7, .Label = c("ALTO VALE DO ITAJAI", 
+"FOZ DO RIO ITAJAI", "GRANDE FLORIANOPOLIS", "GRANDE OESTE", 
+"MEIO OESTE E SERRA CATARINENSE", "PLANALTO NORTE E NORDESTE", 
+"SUL"), class = "factor"), abr_nom_regional = structure(1:7, .Label = c("A_Vale", 
+"F_Itajai", "G_Flori", "G_Oeste", "M_Oeste", "Planalto", "Sul"
+), class = "factor")), class = "data.frame", row.names = c(NA, 
+-7L))
+
+data_sc <- data_sc %>%  left_join(abr_nom_regional)
+
+pop <- readr::read_csv("../pop_and_regions.csv") %>% 
+  select(nom_municipio, qtd_populacao_estimada) %>% 
+  rename(pop=qtd_populacao_estimada)
+
+data_sc <- data_sc %>% left_join(pop)
+
+head(data_sc)
+```
+
+## Cities and covid19 spreading
+
+Are the results in the paper reprodutible? Can we find the same relationships in Santa Catarina cities?
+
+First, let us obtain the dates where daily number of cases and deaths reach 2 in each of these cities.
+
+```{r}
+first_equal_to <- function(x, value){(x == value) & (cumsum(x == value) == 1)}
+
+
+date_two_daily_cases <-
+  data_sc %>% group_by(abr_nom_regional, nom_municipio) %>% arrange(data_ocorrencia) %>% 
+  mutate(first_day_two_daily_cases=first_equal_to(casos, 2)) %>% 
+  filter(first_day_two_daily_cases) %>% 
+  select(abr_nom_regional, nom_municipio, data_ocorrencia) %>% rename(date=data_ocorrencia)
+
+
+date_two_daily_deaths <-
+  data_sc %>% group_by(abr_nom_regional, nom_municipio) %>% arrange(data_ocorrencia) %>% 
+  mutate(first_day_two_daily_deaths=first_equal_to(obitos, 2)) %>% 
+  filter(first_day_two_daily_deaths) %>% 
+  select(abr_nom_regional, nom_municipio, data_ocorrencia) %>% rename(date=data_ocorrencia)
+```
+
+```{r}
+get_data_n_days_after <- function(data_sc, n, group_variable="nom_municipio", variable="casos"){
+  df_to_merge <- if(variable == "casos"){date_two_daily_cases}else{date_two_daily_deaths}
+
+  pop_summary <- 
+    data_sc %>%
+    group_by_at(vars(group_variable)) %>% 
+    select(pop) %>% 
+    distinct() %>% 
+    summarise(pop=sum(pop))
+  
+  result_df <- data_sc %>% 
+    select(-c(pop)) %>% 
+    left_join(df_to_merge) %>% 
+    filter(data_ocorrencia <= date + n) %>% 
+    group_by_at(vars(group_variable)) %>%
+    arrange(data_ocorrencia) %>% 
+    rename(variable=!!variable) %>% 
+    mutate(variable=cumsum(variable)) %>% 
+    filter(data_ocorrencia == date + n) %>% 
+    group_by_at(vars(group_variable)) %>%
+    summarise(variable=sum(variable)) %>% 
+    left_join(pop_summary)
+  result_df
+}
+```
+
+
+### Cities
+
+Let us look at the plots for cases and deaths days after two daily occurrences. We do observe the same linear relationship on the log-log scale as described in the paper:
+
+```{r fig.width=8, fig.height=5, echo=FALSE, message=FALSE}
+library("ggpmisc")
+
+ns <- c(15, 58, 101, 144)
+
+plots_cases <- 
+  lapply(ns, function(n){
+    df <- get_data_n_days_after(data_sc, n, group_variable="nom_municipio")
+    
+    g <- 
+      ggplot(df, aes(x=log10(pop), y=log10(variable))) + 
+      geom_point(fill="#7DB1B5", color="#707070", alpha=0.9, size=2, pch = 21) + 
+      theme_light() + 
+      scale_x_continuous("Population, log P", breaks=seq(3,6), limits=c(3,6)) + 
+      scale_y_continuous("Total cases, Yc", limits=c(0,5), breaks=seq(5)) +
+      stat_smooth(method="lm", formula=y~x) +
+      stat_poly_eq(parse=T, aes(label = ..eq.label..), formula=y~x) +
+      annotate("text", x=5.2, y=0.8, label=sprintf("n = %d days", n), size=2.5, hjust=0)
+    g
+  })
+
+ns <- c(15, 50, 85, 120)
+plots_deaths <- 
+  lapply(ns, function(n){
+    df <- get_data_n_days_after(data_sc, n, variable="obitos")
+    
+    g <- 
+      ggplot(df, aes(x=log10(pop), y=log10(variable))) + 
+      geom_point(fill="#d36b45", color="#707070", alpha=0.8, size=2, pch = 21) + 
+      theme_light() + 
+      scale_x_continuous("Population, log P", breaks=seq(3,7), limits=c(3,7)) + 
+      scale_y_continuous("Total deaths, Yd", limits=c(0,3), breaks=seq(3)) +
+      stat_smooth(method="lm", formula=y~x) +
+      stat_poly_eq(parse=T, aes(label = ..eq.label..), formula=y~x) +
+      annotate("text", x=6, y=2, label=sprintf("n = %d days", n), size=2.5, hjust=0)
+    g
+  })
+
+plots <- as.list(c(plots_cases, plots_deaths))
+
+p <- do.call(cowplot::plot_grid, c(plots, ncol = 4, nrow=2))
+cowplot::save_plot("./log_log_plots_cities_sc.png", p, base_width=10)
+
+print(p)
+```
+
+### Macro-regions
+
+However, if we aggregate the data per macro-region we do not observe the same effect, most probably due to the few number of samples (only 7):
+
+```{r fig.width=8, fig.height=5, echo=FALSE, message=FALSE}
+library("ggpmisc")
+library(ggrepel)
+
+ns <- c(15, 58, 101, 144)
+
+plots_cases <- 
+  lapply(ns, function(n){
+    df <- get_data_n_days_after(data_sc, n, group_variable="abr_nom_regional")
+    
+    g <- 
+      ggplot(df, aes(x=log10(pop), y=log10(variable), label=abr_nom_regional)) + 
+      stat_smooth(method="lm", formula=y~x) +
+      stat_poly_eq(parse=T, aes(label = ..eq.label..), formula=y~x, size=2) +
+      annotate("text", x=5.5, y=4, label=sprintf("n = %d days", n), size=2.5, hjust=0) +
+      geom_point(fill="#7DB1B5", color="#212121", alpha=0.4, size=1.4, pch = 21) + 
+      geom_label_repel(fill="#7DB1B5", color="#212121", alpha=0.9, size=1.4, pch = 21) + 
+      theme_light() + 
+      scale_x_continuous("Population, log P", breaks=seq(55,65,5)/10, limits=c(5.5,6.5)) + 
+      scale_y_continuous("Total cases, Yc", breaks=seq(40, 60, 5)/10, limits=c(4,6))
+
+    g
+  })
+
+ns <- c(15, 50, 85, 120)
+plots_deaths <- 
+  lapply(ns, function(n){
+    df <- get_data_n_days_after(data_sc, n, variable="obitos", group_variable="abr_nom_regional")
+    
+    g <- 
+      ggplot(df, aes(x=log10(pop), y=log10(variable), label=abr_nom_regional)) + 
+      stat_smooth(method="lm", formula=y~x) +
+      stat_poly_eq(parse=T, aes(label = ..eq.label..), formula=y~x, size=2) +
+      annotate("text", x=5.5, y=2, label=sprintf("n = %d days", n), size=2.5, hjust=0) +
+      geom_point(fill="#d36b45", color="#212121", alpha=0.4, size=1.4, pch = 21) + 
+      geom_label_repel(fill="#d36b45", color="#212121", alpha=0.9, size=1.4, pch = 21) + 
+      theme_light() + 
+      scale_x_continuous("Population, log P", breaks=seq(55,65,5)/10, limits=c(5.5,6.5)) + 
+      scale_y_continuous("Total deaths, Yd", limits=c(2,4), breaks=seq(20,40, 5)/10)
+
+    g
+  })
+
+plots <- as.list(c(plots_cases, plots_deaths))
+
+p <- do.call(cowplot::plot_grid, c(plots, ncol = 4, nrow=2))
+cowplot::save_plot("./log_log_plots_macrorregions_sc.png", p, base_width=10)
+
+print(p)
+```
+
+## Conclusions
+
+It is unclear whether we can express the relationship of total number of cases (Yc) x Population (P) or total number of deaths (Yd) x Population for the macrorregions in Santa Catarina.
+
+However, we do find those linear relationship in the log-log plots for cities, as described in the paper. This means we could still use the cumulative effect of the size of cities within a macro-region. 
