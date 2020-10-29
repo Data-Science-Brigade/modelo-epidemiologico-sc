@@ -1,6 +1,6 @@
 # Modelo epidemiológico para Santa Catarina (epiCata)
 
-Pacote R baseado no modelo epidemiológico do Imperial College London, adaptado para a realidade do estado de Santa Catarina.
+Pacote R baseado no modelo epidemiológico do [Imperial College London](https://github.com/ImperialCollegeLondon/covid19model), adaptado para a realidade do estado de Santa Catarina.
 
 Para entender como pacotes R funcionam, leia o livro on-line gratuito: http://r-pkgs.had.co.nz/
 
