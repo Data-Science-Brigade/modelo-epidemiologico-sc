@@ -7,86 +7,42 @@ NAMED_MODELS <- list(
     max_treedepth = list(FULL=15, DEBUG=5, DEVELOP=10)
 )
 
-run_epidemiological_model <- function(selected_date, model_name="base",
-                                      reference_date,
-                                      allowed_interventions=NULL,
-                                      allowed_locations,
-                                      use_google_mobility=TRUE,
-                                      mode,
-                                      iter,
-                                      warmup,
-                                      chains,
-                                      adapt_delta,
-                                      max_treedepth,
-                                      verbose
+run_epidemiological_model <- function(stan_list,
+                                      nickname=NULL,
+                                      model_name="base-infections",
+                                      mode=NULL,
+                                      iter=NULL,
+                                      warmup=NULL,
+                                      chains=NULL,
+                                      adapt_delta=NULL,
+                                      max_treedepth=NULL,
+                                      verbose=NULL,
+                                      init_model=NULL
                                       ){
   require(rstan)
   require(lubridate)
 
-  if(missing(allowed_locations)){
-    stop("Must specify allowed locations")
-  }
-  if(missing(mode) && any(missing(iter),missing(warmup),missing(chains),
-                          missing(adapt_delta),missing(max_treedepth),
-                          missing(verbose))) {
+
+  if(is.null(mode) && any(is.null(iter),is.null(warmup),is.null(chains),
+                          is.null(adapt_delta),is.null(max_treedepth),
+                          is.null(verbose))) {
     stop("epiCata/run_epidemiological_model: You should either specify mode or specify all model parameters")
-  } else if(!missing(mode) && any(!missing(iter),!missing(warmup),
-                                  !missing(chains),!missing(adapt_delta),
-                                  !missing(max_treedepth),!missing(verbose))) {
+  } else if(!is.null(mode) && any(!is.null(iter),!is.null(warmup),
+                                  !is.null(chains),!is.null(adapt_delta),
+                                  !is.null(max_treedepth),!is.null(verbose))) {
     warning("epiCata/run_epidemiological_model: Mode specified but a parameter was overriden, using the parameter instead of the mode's default")
   }
-  if(missing(mode)) {
+  if(is.null(mode)) {
     mode <- sprintf("CUSTOM-%s-%s-%s-%s-%s", iter, warmup, chains, adapt_delta, max_treedepth)
   } else {
-    if(missing(iter)){ iter <- NAMED_MODELS$iter[[mode]] }
-    if(missing(warmup)){ warmup <- NAMED_MODELS$warmup[[mode]] }
-    if(missing(chains)){ chains <- NAMED_MODELS$chains[[mode]] }
-    if(missing(adapt_delta)){ adapt_delta <- NAMED_MODELS$adapt_delta[[mode]] }
-    if(missing(max_treedepth)){ max_treedepth <- NAMED_MODELS$max_treedepth[[mode]] }
-    if(missing(verbose)){ verbose <- NAMED_MODELS$verbose[[mode]] }
+    if(is.null(iter)){ iter <- NAMED_MODELS$iter[[mode]] }
+    if(is.null(warmup)){ warmup <- NAMED_MODELS$warmup[[mode]] }
+    if(is.null(chains)){ chains <- NAMED_MODELS$chains[[mode]] }
+    if(is.null(adapt_delta)){ adapt_delta <- NAMED_MODELS$adapt_delta[[mode]] }
+    if(is.null(max_treedepth)){ max_treedepth <- NAMED_MODELS$max_treedepth[[mode]] }
+    if(is.null(verbose)){ verbose <- NAMED_MODELS$verbose[[mode]] }
   }
   mode_str <- sprintf("%s-%d-%d-%d-%f-%d", mode, iter, warmup, chains, adapt_delta, max_treedepth)
-
-  # Read data
-  if(missing(reference_date)){
-    reference_date <- Sys.Date()
-  }else{
-    reference_date <- ymd(reference_date)
-  }
-
-  cat(sprintf("\nReading Data"))
-  if(missing(selected_date)){
-    covid_data <- read_covid_data(reference_date=reference_date)
-    interventions <- read_interventions(allowed_interventions=allowed_interventions)
-    onset_to_death <- read_onset_to_death()
-    google_mobility <-
-      if(use_google_mobility){
-        read_google_mobility()
-      }else{
-        NULL
-      }
-  }else{
-    covid_data <- read_covid_data(selected_date, reference_date=reference_date)
-    interventions <- read_interventions(selected_date, allowed_interventions=allowed_interventions)
-    onset_to_death <- read_onset_to_death(selected_date)
-    google_mobility <-
-      if(use_google_mobility){
-        read_google_mobility(selected_date)
-      }else{
-        NULL
-      }
-  }
-
-  if(!missing(allowed_locations)){
-    covid_data <- covid_data %>% filter(location_name %in% allowed_locations)
-  }
-
-  # Handle incorrect input: Assume any future dates were input incorrectly and are assigned to reference date
-  if(any(covid_data$data_ocorrencia > (reference_date - days(1)))){
-    covid_data[which(covid_data$data_ocorrencia > (reference_date - days(1))), "data_ocorrencia"] <- reference_date - days(1)
-  }
-
-  stan_list <- prepare_stan_data(covid_data, interventions, onset_to_death)
 
   model_filename <- sprintf("%s/stan-models/%s.stan", get_data_folder(), model_name)
   cat(sprintf("\nReading model: %s", model_filename))
@@ -96,17 +52,51 @@ run_epidemiological_model <- function(selected_date, model_name="base",
 
   cat(sprintf("\nRunning in mode %s", mode_str))
 
+  init <- "random"
+  if(!is.null(init_model)){
+    init <- rstan::get_inits(init_model$fit)
+    to_init <- init_model$out
+    to_init_chains <- length(init)
+    if(chains<to_init_chains){
+      init <- init[1:chains]
+    }
+    init_chains <- length(init)
+    chain_length <- dim(to_init[["mu"]])[1]/to_init_chains
+    n_chains <- 0
+    while(n_chains<init_chains){
+      print(names(init[[n_chains+1]]))
+      for(name in names(init[[n_chains+1]])){
+        idx <- (1+chain_length*n_chains):(chain_length*(n_chains+1))
+        dims <- dim(to_init[[name]])
+        if(length(dims)==1){
+          init[[n_chains+1]][[name]] <- mean(to_init[[name]][idx])
+        } else if(length(dims)==2){
+          init[[n_chains+1]][[name]][1:dims[2]] <- mean(to_init[[name]][idx,1:dims[2]])
+        } else if(length(dims)==3){
+          init[[n_chains+1]][[name]][1:dims[2],1:dims[3]] <- mean(to_init[[name]][idx,1:dims[2],1:dims[3]])
+        } else {
+          error("Wrong number of dimensions in init vector")
+        }
+         #<- apply(, 1, function(array){(array[])})
+      }
+      n_chains <- n_chains+1
+    }
+  }
   fit <- rstan::sampling(model, data=stan_list$stan_data, iter=iter, warmup=warmup, chains=chains, verbose=verbose,
-               control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth))
+               control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth), init=init)
 
   out = rstan::extract(fit)
 
-  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=model_name, mode=mode_str, covid_data=covid_data)
+  if(!is.null(nickname)) {
+    mode_str <- sprintf("%s-%s", nickname, mode_str)
+  }
 
-  save_fitted_model(model_output, reference_date)
+  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=model_name, mode=mode_str)
+
+  model_output
 }
 
-save_fitted_model <- function(model_output, reference_date){
+save_fitted_model <- function(model_output, reference_date, save_path="./"){
 
   reference_date_str <- strftime(reference_date, "%Y_%m_%d")
 
@@ -114,13 +104,13 @@ save_fitted_model <- function(model_output, reference_date){
   JOBID = as.character(abs(round(rnorm(1) * 1000000)))
   filename_suffix <- paste0(reference_date_str, '_', model_output$model_name,'_', model_output$mode, '_', JOBID)
 
-  dir.create(paste("results", reference_date_str, sep="/"), recursive = TRUE, showWarnings = FALSE)
-  dir.create(paste("figures", reference_date_str, sep="/"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(paste0(save_path, "results/", reference_date_str), recursive = TRUE, showWarnings = FALSE)
+  dir.create(paste0(save_path, "figures/", reference_date_str), recursive = TRUE, showWarnings = FALSE)
 
   model_output$reference_date_str <- reference_date_str
   model_output$filename_suffix <- filename_suffix
 
-  model_output_filename <- paste0('results/', reference_date_str, '/', filename_suffix, '-stanfit.Rdata')
+  model_output_filename <- paste0(save_path, 'results/', reference_date_str, '/', filename_suffix, '-stanfit.Rdata')
   cat(sprintf("\nSaving model objects to %s", model_output_filename))
   save(model_output, file=model_output_filename)
 

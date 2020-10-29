@@ -1,27 +1,11 @@
 #### INTERVENTIONS ####
 
-read_interventions <- function(selected_date, allowed_interventions, use_google_mobility=TRUE){
+read_interventions <- function(interventions_filename, allowed_interventions=NULL, google_mobility_filename=NULL, google_mobility_window_size=0){
+  require(readxl)
+  require(tidyverse)
   require(lubridate)
 
-  google_mobility <-
-    if(use_google_mobility){
-      if(missing(selected_date)){
-        read_google_mobility()
-      }else{
-        read_google_mobility(selected_date)
-      }
-    }else{
-      NULL
-    }
-
-  if(missing(selected_date)){
-    files <- list.files(get_data_folder(), pattern="*interventions*")
-    selected_date <- ymd(max(sapply(files, function(x){substr(x, 1, 10)})))
-  }
-
-  selected_date <- strftime(selected_date, format="%Y_%m_%d")
-
-  interventions <- readxl::read_excel(sprintf("%s/%s_interventions.xls", get_data_folder(), selected_date), 4)
+  interventions <- readxl::read_excel(interventions_filename, 4)
 
   # Columns: "ID_ATIV"   "ATIVIDADE" "AREA"      "SITUACAO"  "NORMA"     "DATA"      "ADERENCIA"
   #   Where ADERENCIA is an estimate of how much that economic area is suspended.
@@ -37,48 +21,70 @@ read_interventions <- function(selected_date, allowed_interventions, use_google_
     interventions %>% group_by(AREA, DATA) %>%
     summarise(ADERENCIA=min(ADERENCIA), .groups="drop")
 
-  if(!missing(allowed_interventions) ){
+  if(!is.null(allowed_interventions) ){
     if(length(allowed_interventions) > 0){
       interventions <- interventions %>% filter(AREA %in% allowed_interventions)
     }
   }
 
-  if(use_google_mobility){
+  google_mobility <- read_google_mobility(google_mobility_filename, window_size=google_mobility_window_size)
+  if(!is.null(google_mobility)){
     interventions <- bind_rows(interventions, google_mobility)
   }
 
   interventions
 }
 
-
 #### GOOGLE MOBILITY ####
+google_mobility_window_summary <- function(mobility_data) {
+  summarise(mobility_data, start=min(DATA), end=max(DATA), ADERENCIA=mean(ADERENCIA))
+}
 
-read_google_mobility <- function(selected_date){
-  require(lubridate)
+read_google_mobility <- function(google_mobility_filename, window_size=0){
+  if(is.null(google_mobility_filename)){
+    NULL
+  }else{
+    require(readr)
+    require(tidyverse)
+    require(lubridate)
+    require(slider)
+    cols <- c("date",
+              "retail_and_recreation_percent_change_from_baseline",
+              "grocery_and_pharmacy_percent_change_from_baseline",
+              "parks_percent_change_from_baseline",
+              "transit_stations_percent_change_from_baseline",
+              "workplaces_percent_change_from_baseline",
+              "residential_percent_change_from_baseline")
 
-  cols <- c("date",
-            "retail_and_recreation_percent_change_from_baseline",
-            "grocery_and_pharmacy_percent_change_from_baseline",
-            "parks_percent_change_from_baseline",
-            "transit_stations_percent_change_from_baseline",
-            "workplaces_percent_change_from_baseline",
-            "residential_percent_change_from_baseline")
+    mobility <- readr::read_csv(google_mobility_filename)
+    mobility <- mobility %>% filter(iso_3166_2_code == "BR-SC")
 
-  if(missing(selected_date)){
-    files <- list.files(get_data_folder(), pattern="*mobility*")
-    selected_date <- ymd(max(sapply(files, function(x){substr(x, 1, 10)})))
+    mobility <- mobility[, cols]
+    mobility$date <- ymd(mobility$date)
+
+    mobility_long <- mobility %>%
+      gather(key="AREA", value = "ADERENCIA", -date) %>%
+      rename(DATA=date) %>%
+      mutate(ADERENCIA=ADERENCIA/100)
+
+    mobility_ordered <- mobility_long %>% arrange(DATA)
+
+    groups <- unique(mobility_ordered$AREA)
+
+    # TODO: Group map?
+    mobility_slided_list <- list()
+    for(i in seq_along(groups)) {
+      group <- groups[[i]]
+      group_data <- mobility_ordered %>% filter(AREA==group)
+      slided_group_data <-
+        slide_period_dfr(group_data, group_data$DATA, "day", google_mobility_window_summary, .before=window_size) %>%
+        select(-start) %>%
+        rename(DATA=end)
+      slided_group_data[["AREA"]] <- group
+      mobility_slided_list[[i]] <- slided_group_data
+    }
+    mobility_slided <- bind_rows(mobility_slided_list) %>% relocate(AREA, .before=ADERENCIA)
+
+    mobility_slided
   }
-
-  selected_date <- strftime(selected_date, format="%Y_%m_%d")
-  mobility <- readr::read_csv(sprintf("%s/%s_google_mobility.csv", get_data_folder(), selected_date))
-
-  mobility <- mobility[, cols]
-  mobility$date <- ymd(mobility$date)
-
-  mobility_long <- mobility %>%
-    gather(key="AREA", value = "ADERENCIA", -date) %>%
-    rename(DATA=date) %>%
-    mutate(ADERENCIA=ADERENCIA/100)
-
-  mobility_long
 }

@@ -1,6 +1,7 @@
-
-
-prepare_stan_data <- function(covid_data, interventions, onset_to_death, forecast=30){
+prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
+                              serial_interval, infection_to_onset, population,
+                              forecast=30){
+  require(tidyverse)
 
   #### SELECT LOCATIONS ####
   available_locations <-
@@ -20,7 +21,7 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, forecas
   ecdf.saved <- ecdf(x1 + x2)
 
   # Add a padding to the serial interval if it doesn't contain enough rows
-  padded_serial_interval <- get_padded_serial_interval(N2)
+  padded_serial_interval <- get_padded_serial_interval(serial_interval, N2)
 
   #### INTERVENTIONS ####
 
@@ -34,7 +35,7 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, forecas
     group_by(AREA) %>%
     fill(ADERENCIA, .direction="down") %>%
     replace_na(list(ADERENCIA=0)) %>%
-    spread(AREA, ADERENCIA)
+    tidyr::spread(AREA, ADERENCIA)
 
   n_covariates <- common_interventions %>% ncol - 1
 
@@ -52,7 +53,9 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, forecas
 
   i <- 1
   for(location_name in available_locations){
-    result_list <- get_stan_data_for_location(location_name=location_name, N2=N2,
+    result_list <- get_stan_data_for_location(location_name=location_name,
+                                              population=population,
+                                              IFR=IFR, N2=N2,
                                               ecdf.saved=ecdf.saved,
                                               covid_data=covid_data,
                                               common_interventions=common_interventions)
@@ -80,6 +83,12 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, forecas
 
   }
 
+  if(length(stan_data$EpidemicStart)==1){
+    stop("Model does not support only one region")
+    # FIXME: Bug with single location, the fix below does not work
+    dim(stan_data$EpidemicStart) <- 1
+  }
+
   return(list("stan_data" = stan_data,
               "dates" = dates,
               "reported_cases"=reported_cases,
@@ -89,7 +98,7 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, forecas
               "available_locations"=names(dates)))
 }
 
-get_stan_data_for_location <- function(location_name, N2, ecdf.saved, covid_data, common_interventions){
+get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.saved, covid_data, common_interventions){
 
   #### FILTER RELEVANT INFORMATION ####
   cat(sprintf("\n\nParsing data for location: %s\n", location_name))
@@ -112,7 +121,7 @@ get_stan_data_for_location <- function(location_name, N2, ecdf.saved, covid_data
 
   #### EPIDEMIC START AND POPULATION ####
   epidemic_start <- idx_deaths_mark + 1 - month_before_deaths_mark
-  location_pop <- pop[pop$location_name == location_name,]$pop
+  location_pop <- population[population$location_name == location_name,]$pop
 
   #### N and N2 ####
   N <- nrow(location_data)
@@ -154,7 +163,7 @@ get_stan_data_for_location <- function(location_name, N2, ecdf.saved, covid_data
 
 }
 
-get_padded_serial_interval <- function(N2){
+get_padded_serial_interval <- function(serial_interval, N2){
   size_serial_interval <- nrow(serial_interval)
 
   # Pads serial interval with 0 if N2 is greater than the length of the serial

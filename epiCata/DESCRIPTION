@@ -16,11 +16,11 @@ Imports:
   EnvStats (>= 2.3.1),
   cowplot (>= 1.0.0),
   ggrepel (>= 0.8.2),
-  scales,
-  ggplot2
+  scales (>= 1.1.1),
+  ggplot2 (>= 3.3.2),
+  optparse (>= 1.6.6),
+  usethis (>= 1.6.1),
+  slider (== 0.1.0)
 Depends: 
     R (>= 2.10)
 RoxygenNote: 7.1.0
-Remotes:
-  hadley/scales,
-  hadley/ggplot2
