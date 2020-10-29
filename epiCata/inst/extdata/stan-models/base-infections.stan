@@ -96,8 +96,10 @@ model {
   kappa ~ normal(0,0.5);
   mu ~ normal(3.28, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
   alpha ~ normal(0,0.5);
+  alpha_pop ~ normal(0,0.5);
   for (i in 1:P)
     alpha1[i,] ~ normal(0,gamma);
+  alpha1_pop ~ normal(0,gamma);
   alpha_hier ~ gamma(.1667,1);
   ifr_noise ~ normal(1,0.1);
   for(m in 1:M){
