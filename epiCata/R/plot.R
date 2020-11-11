@@ -200,7 +200,7 @@ plot_graph_A <- function(location_name, x_breaks, dfs){
 
 }
 
-plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=TRUE){
+plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=FALSE){
   require(tidyverse)
   require(ggplot2)
   require(scales)
@@ -243,7 +243,7 @@ plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=TRUE){
                  breaks=x_breaks,
                  limits=c(min(x_breaks), max(x_breaks))) +
     geom_hline(yintercept = max(data_location$deaths_cum), linetype="dashed", size=0.07) +
-    ylab("Numero TOTAL de óbitos") + xlab("Data") +
+    ylab(if(is_cumulative) { "Numero TOTAL de óbitos" } else { "Numero DIÁRIO de óbitos" }) + xlab("Data") +
     scale_fill_manual(name = "", labels = c("Vlr. Medio", "Variacao"),
                       values = c(alpha("deepskyblue4", 0.55),
                                  alpha("deepskyblue4", 0.45))) +
