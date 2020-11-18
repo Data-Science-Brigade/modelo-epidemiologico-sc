@@ -56,12 +56,10 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
     NULL
   }else{
     require(readr)
-    require(stringr)
     require(tidyverse)
     require(lubridate)
     require(slider)
     cols <- c("date",
-              "sub_region_1",
               "retail_and_recreation_percent_change_from_baseline",
               "grocery_and_pharmacy_percent_change_from_baseline",
               "parks_percent_change_from_baseline",
@@ -70,9 +68,9 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
               "residential_percent_change_from_baseline")
 
     mobility <- readr::read_csv(google_mobility_filename)
-    mobility <- mobility %>% filter(country_region == "State of Santa Catarina")
+    mobility <- mobility %>% filter(iso_3166_2_code == "BR-SC")
 
-    mobility <- mobility[, cols] %>% mutate_if(is.character, clean_city_name_str)
+    mobility <- mobility[, cols]
     mobility$date <- ymd(mobility$date)
     print(mobility)
 
@@ -204,3 +202,77 @@ read_beds <- function(beds_filename, EPS=1e-6){
     df_long
   }
 }
+
+'
+read_google_mobility <- function(google_mobility_filename, window_size=0){
+  if(is.null(google_mobility_filename)){
+    NULL
+  }else{
+    require(readr)
+    require(stringr)
+    require(tidyverse)
+    require(lubridate)
+    require(slider)
+    cols <- c("date",
+              "sub_region_1",
+              "retail_and_recreation_percent_change_from_baseline",
+              "grocery_and_pharmacy_percent_change_from_baseline",
+              "parks_percent_change_from_baseline",
+              "transit_stations_percent_change_from_baseline",
+              "workplaces_percent_change_from_baseline",
+              "residential_percent_change_from_baseline")
+
+    # TODO pass as arg:
+    population_filename <- "pop_and_regions.csv"
+    pop_df <- readr::read_csv(population_filename) %>% select(-c(cod_municipio_ibge))
+
+    mobility <- readr::read_csv(google_mobility_filename)
+    mobility <- mobility %>% filter(country_region == "State of Santa Catarina")
+
+    mobility <- mobility[, cols] %>%
+      mutate_if(is.character, clean_city_name_str) %>%
+      rename(nom_municipio=sub_region_1)
+    mobility$date <- ymd(mobility$date)
+    print(mobility)
+
+    cities_df <- mobility
+
+    cities_df <- cities_df %>%
+      #select(-nom_regional) %>%
+      left_join(pop_df, by="nom_municipio") %>%
+      filter(!is.na(nom_regional))
+
+
+
+    print(mobility_slided)
+    mobility_slided
+  }
+}
+
+get_mobility_slided <- function(mobility) {
+  mobility_long <- mobility %>%
+    gather(key="AREA", value = "ADERENCIA", -c(date,location_name)) %>%
+    rename(DATA=date) %>%
+    mutate(ADERENCIA=ADERENCIA/100)
+  mobility_long[["location_name"]] <- NULL
+  print(mobility_long)
+
+  mobility_ordered <- mobility_long %>% arrange(DATA)
+
+  groups <- unique(mobility_ordered$AREA)
+
+  # TODO: Group map?
+  mobility_slided_list <- list()
+  for(i in seq_along(groups)) {
+    group <- groups[[i]]
+    group_data <- mobility_ordered %>% filter(AREA==group)
+    slided_group_data <-
+      slide_period_dfr(group_data, group_data$DATA, "day", google_mobility_window_summary, .before=window_size) %>%
+      select(-start) %>%
+      rename(DATA=end)
+    slided_group_data[["AREA"]] <- group
+    mobility_slided_list[[i]] <- slided_group_data
+  }
+  mobility_slided <- bind_rows(mobility_slided_list) %>% relocate(AREA, .before=ADERENCIA)
+}
+'
