@@ -1,6 +1,6 @@
 #### INTERVENTIONS ####
 
-read_interventions <- function(interventions_filename, allowed_interventions=NULL, google_mobility_filename=NULL, google_mobility_window_size=0){
+read_interventions <- function(interventions_filename, allowed_interventions=NULL, google_mobility_filename=NULL, google_mobility_window_size=0, beds_filename="./beds.csv"){
   require(readxl)
   require(tidyverse)
   require(lubridate)
@@ -26,11 +26,21 @@ read_interventions <- function(interventions_filename, allowed_interventions=NUL
       interventions <- interventions %>% filter(AREA %in% allowed_interventions)
     }
   }
+  print(interventions)
 
   google_mobility <- read_google_mobility(google_mobility_filename, window_size=google_mobility_window_size)
+  print(google_mobility)
   if(!is.null(google_mobility)){
     interventions <- bind_rows(interventions, google_mobility)
   }
+  print(interventions)
+
+  beds <- read_beds(beds_filename)
+  print(beds)
+  if(!is.null(beds)){
+    interventions <- bind_rows(interventions, beds)
+  }
+  print(interventions)
 
   interventions
 }
@@ -61,11 +71,13 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
 
     mobility <- mobility[, cols]
     mobility$date <- ymd(mobility$date)
+    print(mobility)
 
     mobility_long <- mobility %>%
       gather(key="AREA", value = "ADERENCIA", -date) %>%
       rename(DATA=date) %>%
       mutate(ADERENCIA=ADERENCIA/100)
+    print(mobility_long)
 
     mobility_ordered <- mobility_long %>% arrange(DATA)
 
@@ -85,6 +97,106 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
     }
     mobility_slided <- bind_rows(mobility_slided_list) %>% relocate(AREA, .before=ADERENCIA)
 
+    print(mobility_slided)
     mobility_slided
+  }
+}
+
+read_beds <- function(beds_filename, EPS=1e-6){
+  if(is.null(beds_filename)){
+    NULL
+  }else{
+    require(readr)
+    require(tidyverse)
+    require(lubridate)
+    require(slider)
+    cols <- c("leitos_covid_enfermaria_ocupados",
+              "leitos_covid_enfermaria_disponiveis",
+              "leitos_covid_uti_ocupados",
+              "leitos_covid_uti_disponiveis")
+
+    cities_df <- readr::read_csv(beds_filename) %>%
+      rename(data_ocorrencia=dia, nom_municipio = municipio)
+
+    # TODO pass as arg:
+    population_filename <- "pop_and_regions.csv"
+    pop_df <- readr::read_csv(population_filename) %>% select(-c(cod_municipio_ibge, qtd_populacao_estimada))
+
+    cities_df$data_ocorrencia <- ymd(cities_df$data_ocorrencia)
+
+    cities_df <- cities_df %>%
+      #select(-nom_regional) %>%
+      left_join(pop_df, by="nom_municipio")
+
+    #### COMPILE leitos disponiveis AND ocupados FOR EACH CITY, REGION AND STATE ####
+    cities_df <- cities_df %>% group_by(nom_regiaosaude, nom_regional, nom_municipio, data_ocorrencia) %>%
+      summarise(leitos_covid_enfermaria_ocupados=sum(leitos_covid_enfermaria_ocupados),
+                leitos_covid_enfermaria_disponiveis=sum(leitos_covid_enfermaria_disponiveis),
+                leitos_covid_uti_ocupados=sum(leitos_covid_uti_ocupados),
+                leitos_covid_uti_disponiveis=sum(leitos_covid_uti_disponiveis))
+
+    for(c in cols){
+      cities_df[[c]] <- cities_df[[c]] + EPS
+    }
+
+    healthregions_df <- cities_df %>% group_by(nom_regiaosaude, data_ocorrencia) %>%
+      summarise(leitos_covid_enfermaria_ocupados=sum(leitos_covid_enfermaria_ocupados),
+                leitos_covid_enfermaria_disponiveis=sum(leitos_covid_enfermaria_disponiveis),
+                leitos_covid_uti_ocupados=sum(leitos_covid_uti_ocupados),
+                leitos_covid_uti_disponiveis=sum(leitos_covid_uti_disponiveis))
+
+    macrorregions_df <- cities_df %>% group_by(nom_regional, data_ocorrencia) %>%
+      summarise(leitos_covid_enfermaria_ocupados=sum(leitos_covid_enfermaria_ocupados),
+                leitos_covid_enfermaria_disponiveis=sum(leitos_covid_enfermaria_disponiveis),
+                leitos_covid_uti_ocupados=sum(leitos_covid_uti_ocupados),
+                leitos_covid_uti_disponiveis=sum(leitos_covid_uti_disponiveis))
+
+    state_df <- macrorregions_df %>% group_by(data_ocorrencia) %>%
+      summarise(leitos_covid_enfermaria_ocupados=sum(leitos_covid_enfermaria_ocupados),
+                leitos_covid_enfermaria_disponiveis=sum(leitos_covid_enfermaria_disponiveis),
+                leitos_covid_uti_ocupados=sum(leitos_covid_uti_ocupados),
+                leitos_covid_uti_disponiveis=sum(leitos_covid_uti_disponiveis))
+
+    # TODO: Paste from types of beds and states to a complete index
+    cities_df[["leitos_covid_enfermaria_pct"]] <- cities_df[["leitos_covid_enfermaria_ocupados"]]/(cities_df[["leitos_covid_enfermaria_ocupados"]]+cities_df[["leitos_covid_enfermaria_ocupados"]])
+    cities_df[["leitos_covid_uti_pct"]] <- cities_df[["leitos_covid_uti_ocupados"]]/(cities_df[["leitos_covid_uti_ocupados"]]+cities_df[["leitos_covid_uti_ocupados"]])
+    cities_df <- cities_df %>% select(-cols)
+
+    healthregions_df[["leitos_covid_enfermaria_pct"]] <- healthregions_df[["leitos_covid_enfermaria_ocupados"]]/(healthregions_df[["leitos_covid_enfermaria_ocupados"]]+healthregions_df[["leitos_covid_enfermaria_ocupados"]])
+    healthregions_df[["leitos_covid_uti_pct"]] <- healthregions_df[["leitos_covid_uti_ocupados"]]/(healthregions_df[["leitos_covid_uti_ocupados"]]+healthregions_df[["leitos_covid_uti_ocupados"]])
+    healthregions_df <- healthregions_df %>% select(-cols)
+
+    macrorregions_df[["leitos_covid_enfermaria_pct"]] <- macrorregions_df[["leitos_covid_enfermaria_ocupados"]]/(macrorregions_df[["leitos_covid_enfermaria_ocupados"]]+macrorregions_df[["leitos_covid_enfermaria_ocupados"]])
+    macrorregions_df[["leitos_covid_uti_pct"]] <- macrorregions_df[["leitos_covid_uti_ocupados"]]/(macrorregions_df[["leitos_covid_uti_ocupados"]]+macrorregions_df[["leitos_covid_uti_ocupados"]])
+    macrorregions_df <- macrorregions_df %>% select(-cols)
+
+    state_df[["leitos_covid_enfermaria_pct"]] <- state_df[["leitos_covid_enfermaria_ocupados"]]/(state_df[["leitos_covid_enfermaria_ocupados"]]+state_df[["leitos_covid_enfermaria_ocupados"]])
+    state_df[["leitos_covid_uti_pct"]] <- state_df[["leitos_covid_uti_ocupados"]]/(state_df[["leitos_covid_uti_ocupados"]]+state_df[["leitos_covid_uti_ocupados"]])
+    state_df <- state_df %>% select(-cols)
+
+    #### GROUP DATASETS ####
+    cities_df <- cities_df %>% ungroup %>%
+      mutate(location_name=paste0("SC_MUN_", gsub(" ", "_", nom_municipio))) %>%
+      select(location_name, data_ocorrencia, leitos_covid_enfermaria_pct, leitos_covid_uti_pct)
+    healthregions_df <- healthregions_df %>% ungroup %>%
+      mutate(location_name=paste0("SC_RSA_", gsub(" ", "_", nom_regiaosaude))) %>%
+      select(location_name, data_ocorrencia, leitos_covid_enfermaria_pct, leitos_covid_uti_pct)
+    macrorregions_df <- macrorregions_df %>% ungroup %>%
+      mutate(location_name=paste0("SC_MAC_", gsub(" ", "_", nom_regional))) %>%
+      select(location_name, data_ocorrencia, leitos_covid_enfermaria_pct, leitos_covid_uti_pct)
+    state_df <- state_df %>% ungroup %>%
+      mutate(location_name="SC_ESTADO") %>%
+      select(location_name, data_ocorrencia, leitos_covid_enfermaria_pct, leitos_covid_uti_pct)
+
+    #df <- bind_rows(cities_df, healthregions_df, macrorregions_df, state_df)
+    df <- state_df %>% select(-location_name)
+    print(df)
+
+    df_long <- df %>%
+      gather(key="AREA", value = "ADERENCIA", -data_ocorrencia) %>%
+      rename(DATA=data_ocorrencia)
+    print(df_long)
+
+    df_long
   }
 }
