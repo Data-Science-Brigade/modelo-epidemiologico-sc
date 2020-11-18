@@ -26,6 +26,7 @@ read_interventions <- function(interventions_filename, allowed_interventions=NUL
       interventions <- interventions %>% filter(AREA %in% allowed_interventions)
     }
   }
+  interventions[["location_name"]] = NULL
   print(interventions)
 
   google_mobility <- read_google_mobility(google_mobility_filename, window_size=google_mobility_window_size)
@@ -55,10 +56,12 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
     NULL
   }else{
     require(readr)
+    require(stringr)
     require(tidyverse)
     require(lubridate)
     require(slider)
     cols <- c("date",
+              "sub_region_1",
               "retail_and_recreation_percent_change_from_baseline",
               "grocery_and_pharmacy_percent_change_from_baseline",
               "parks_percent_change_from_baseline",
@@ -67,9 +70,9 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
               "residential_percent_change_from_baseline")
 
     mobility <- readr::read_csv(google_mobility_filename)
-    mobility <- mobility %>% filter(iso_3166_2_code == "BR-SC")
+    mobility <- mobility %>% filter(country_region == "State of Santa Catarina")
 
-    mobility <- mobility[, cols]
+    mobility <- mobility[, cols] %>% mutate_if(is.character, clean_city_name_str)
     mobility$date <- ymd(mobility$date)
     print(mobility)
 
@@ -77,6 +80,7 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
       gather(key="AREA", value = "ADERENCIA", -date) %>%
       rename(DATA=date) %>%
       mutate(ADERENCIA=ADERENCIA/100)
+    mobility_long[["location_name"]] <- NULL
     print(mobility_long)
 
     mobility_ordered <- mobility_long %>% arrange(DATA)
@@ -193,7 +197,7 @@ read_beds <- function(beds_filename, EPS=1e-6){
     print(df)
 
     df_long <- df %>%
-      gather(key="AREA", value = "ADERENCIA", -data_ocorrencia) %>%
+      gather(key="AREA", value = "ADERENCIA", -c(location_name,data_ocorrencia)) %>%
       rename(DATA=data_ocorrencia)
     print(df_long)
 
