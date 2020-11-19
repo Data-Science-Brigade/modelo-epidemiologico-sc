@@ -26,21 +26,16 @@ read_interventions <- function(interventions_filename, allowed_interventions=NUL
       interventions <- interventions %>% filter(AREA %in% allowed_interventions)
     }
   }
-  print(interventions)
 
   google_mobility <- read_google_mobility(google_mobility_filename, window_size=google_mobility_window_size)
-  print(google_mobility)
   if(!is.null(google_mobility)){
     interventions <- bind_rows(interventions, google_mobility)
   }
-  print(interventions)
 
   beds <- read_beds(beds_filename)
-  print(beds)
   if(!is.null(beds)){
     interventions <- bind_rows(interventions, beds)
   }
-  print(interventions)
 
   interventions
 }
@@ -71,13 +66,11 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
 
     mobility <- mobility[, cols]
     mobility$date <- ymd(mobility$date)
-    print(mobility)
 
     mobility_long <- mobility %>%
       gather(key="AREA", value = "ADERENCIA", -date) %>%
       rename(DATA=date) %>%
       mutate(ADERENCIA=ADERENCIA/100)
-    print(mobility_long)
 
     mobility_ordered <- mobility_long %>% arrange(DATA)
 
@@ -97,7 +90,6 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
     }
     mobility_slided <- bind_rows(mobility_slided_list) %>% relocate(AREA, .before=ADERENCIA)
 
-    print(mobility_slided)
     mobility_slided
   }
 }
@@ -190,12 +182,10 @@ read_beds <- function(beds_filename, EPS=1e-6){
 
     #df <- bind_rows(cities_df, healthregions_df, macrorregions_df, state_df)
     df <- state_df %>% select(-location_name)
-    print(df)
 
     df_long <- df %>%
       gather(key="AREA", value = "ADERENCIA", -data_ocorrencia) %>%
       rename(DATA=data_ocorrencia)
-    print(df_long)
 
     df_long
   }
