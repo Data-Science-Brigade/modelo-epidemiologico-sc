@@ -166,7 +166,7 @@ plot_graph_A <- function(location_name, x_breaks, dfs){
                                  (data_cases_95 %>% slice(n()))$cases_max))
   final_values$y <- round(final_values$y)
 
-  max_y_break <- max(data_cases$cases_max)
+  max_y_break <- max(c(max(data_cases$cases_max),round(max(dfs$data_location$reported_cases))))
   max_y_break <- round_y_breaks(max_y_break)
 
   original_y_breaks <- seq(0, max_y_break, max_y_break/4)
