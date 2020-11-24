@@ -6,7 +6,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
   #### SELECT LOCATIONS ####
   available_locations <-
     covid_data %>% group_by(location_name) %>%
-    summarise(casos=sum(casos), obitos=sum(obitos), .groups="drop") %>%
+    summarise(casos=sum(casos), obitos=sum(obitos), icu_beds=sum(icu_beds), .groups="drop") %>%
     arrange(desc(obitos)) %>% filter(obitos >= 10)
   available_locations <- available_locations$location_name
 
@@ -44,7 +44,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
   reported_cases <- list()
   deaths_by_location <- list()
   stan_data <- list(M=length(available_locations), N=NULL, deaths=NULL, f=NULL, N0=6, # N0 = 6 to make it consistent with Rayleigh
-                    cases=NULL, SI=padded_serial_interval$fit[1:N2], features=NULL,
+                    cases=NULL, icu_beds=NULL, SI=padded_serial_interval$fit[1:N2], features=NULL,
                     EpidemicStart = NULL, pop = NULL,
                     N2=N2, x=1:N2, P=n_covariates)
 
@@ -70,6 +70,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
     stan_data$f <- cbind(stan_data$f, result_list$f)
     stan_data$deaths <- cbind(stan_data$deaths, result_list$deaths)
     stan_data$cases <- cbind(stan_data$cases, result_list$cases)
+    stan_data$icu_beds <- cbind(stan_data$icu_beds, result_list$icu_beds)
 
     stan_data$X[i,,] <- result_list$location_covariates
     i <- i + 1
@@ -153,9 +154,10 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   reported_cases <- as.vector(as.numeric(location_data$casos))
   deaths <- c(as.vector(as.numeric(location_data$obitos)), rep(-1, location_forecast))
   cases <- c(as.vector(as.numeric(location_data$casos)), rep(-1, location_forecast))
+  icu_beds <- c(as.vector(as.numeric(location_data$icu_beds)), rep(-1, location_forecast))
 
   return(list(epidemic_start=epidemic_start, location_pop=location_pop, N=N, N2=N2, f=f,
-              deaths=deaths, cases=cases, x=1:N2,
+              deaths=deaths, cases=cases, icu_beds=icu_beds, x=1:N2,
               location_covariates=location_covariates,
               dates=location_data$data_ocorrencia,
               reported_cases=reported_cases,

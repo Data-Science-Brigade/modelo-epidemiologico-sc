@@ -15,10 +15,20 @@ read_covid_data <- function(deaths_filename, population_filename, reference_date
   require(tidyverse)
   require(lubridate)
 
+  beds_df <- readr::read_csv("./beds.csv") %>%
+    select(-c("cod_municipio_ibge","leitos_covid_enfermaria_ocupados","leitos_covid_enfermaria_disponiveis","leitos_covid_enfermaria_existentes","leitos_covid_uti_existentes")) %>%
+    rename(nom_municipio=municipio, data_ocorrencia=dia, icu_beds=leitos_covid_uti_ocupados)
   cities_df <- readr::read_csv(deaths_filename)
+
   pop_df <- readr::read_csv(population_filename) %>% select(-c(cod_municipio_ibge, qtd_populacao_estimada))
 
   cities_df$data_ocorrencia <- ymd(cities_df$data_ocorrencia)
+  beds_df$data_ocorrencia <- ymd(beds_df$data_ocorrencia)
+
+  cities_df <- cities_df %>%
+    left_join(beds_df, by=c("nom_municipio","data_ocorrencia"))
+  # Could remove the line below, I think
+  cities_df$icu_beds <- replace_na(cities_df$icu_beds, 0)
 
   if(max(cities_df$data_ocorrencia, na.rm=TRUE) < reference_date-days(1)){
     stop("Your dataset does not have data up to the reference date!")
@@ -39,29 +49,29 @@ read_covid_data <- function(deaths_filename, population_filename, reference_date
   cities_df <- cities_df %>% select(-nom_regional) %>% left_join(pop_df, by="nom_municipio")
 
   cities_df <- cities_df %>% group_by(nom_regiaosaude, nom_regional, nom_municipio, data_ocorrencia) %>%
-    summarise(casos=sum(casos), obitos=sum(obitos))
+    summarise(casos=sum(casos), obitos=sum(obitos), icu_beds=sum(icu_beds))
 
 
   #### COMPILE casos AND obitos FOR EACH CITY, REGION AND STATE ####
-  healthregions_df <- cities_df %>% group_by(nom_regiaosaude, data_ocorrencia) %>% summarise(casos=sum(casos), obitos=sum(obitos))
+  healthregions_df <- cities_df %>% group_by(nom_regiaosaude, data_ocorrencia) %>% summarise(casos=sum(casos), obitos=sum(obitos), icu_beds=sum(icu_beds))
 
-  macrorregions_df <- cities_df %>% group_by(nom_regional, data_ocorrencia) %>% summarise(casos=sum(casos), obitos=sum(obitos))
+  macrorregions_df <- cities_df %>% group_by(nom_regional, data_ocorrencia) %>% summarise(casos=sum(casos), obitos=sum(obitos), icu_beds=sum(icu_beds))
 
-  state_df <- macrorregions_df %>% group_by(data_ocorrencia) %>% summarise(casos=sum(casos), obitos=sum(obitos))
+  state_df <- macrorregions_df %>% group_by(data_ocorrencia) %>% summarise(casos=sum(casos), obitos=sum(obitos), icu_beds=sum(icu_beds))
 
   #### GROUP DATASETS ####
   cities_df <- cities_df %>% ungroup %>%
     mutate(location_name=paste0("SC_MUN_", gsub(" ", "_", nom_municipio))) %>%
-    select(location_name, data_ocorrencia, casos, obitos)
+    select(location_name, data_ocorrencia, casos, obitos, icu_beds)
   healthregions_df <- healthregions_df %>% ungroup %>%
     mutate(location_name=paste0("SC_RSA_", gsub(" ", "_", nom_regiaosaude))) %>%
-    select(location_name, data_ocorrencia, casos, obitos)
+    select(location_name, data_ocorrencia, casos, obitos, icu_beds)
   macrorregions_df <- macrorregions_df %>% ungroup %>%
     mutate(location_name=paste0("SC_MAC_", gsub(" ", "_", nom_regional))) %>%
-    select(location_name, data_ocorrencia, casos, obitos)
+    select(location_name, data_ocorrencia, casos, obitos, icu_beds)
   state_df <- state_df %>% ungroup %>%
     mutate(location_name="SC_ESTADO") %>%
-    select(location_name, data_ocorrencia, casos, obitos)
+    select(location_name, data_ocorrencia, casos, obitos, icu_beds)
 
   df <- bind_rows(cities_df, healthregions_df, macrorregions_df, state_df)
 
@@ -80,7 +90,8 @@ read_covid_data <- function(deaths_filename, population_filename, reference_date
   all_dates_df <- all_dates_df %>% arrange(location_name, data_ocorrencia)
   df <- df %>% merge(all_dates_df, by=c("location_name", "data_ocorrencia"), all=T) %>%
     mutate(casos=ifelse(is.na(casos), 0, casos),
-           obitos=ifelse(is.na(obitos), 0, obitos))
+           obitos=ifelse(is.na(obitos), 0, obitos),
+           icu_beds=ifelse(is.na(icu_beds), 0, icu_beds))
 
   df <- df %>% filter(location_name %in% allowed_locations)
 
