@@ -88,8 +88,11 @@ make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, 
 
   if(length(x_breaks) > 17){
     x_breaks <- seq(x_min_date, x_max_date, by="4 weeks")
-    if(x_breaks[length(x_breaks)] != x_max_date){
-      x_breaks <- seq(x_min_date + days(7), x_max_date, by="4 weeks")
+    for(d in c(0,7,14,21)){
+      x_breaks <- seq(x_min_date + days(d), x_max_date, by="4 weeks")
+      if(x_breaks[length(x_breaks)] == x_max_date){
+        break
+      }
     }
   }else if(length(x_breaks) > 11){
     x_breaks <- seq(x_min_date, x_max_date, by="2 weeks")

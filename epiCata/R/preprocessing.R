@@ -1,4 +1,4 @@
-prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
+prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR, ICUR,
                               serial_interval, infection_to_onset, population,
                               forecast=30){
   require(tidyverse)
@@ -16,9 +16,17 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
   N2 <- (max(covid_data$data_ocorrencia) - min(covid_data$data_ocorrencia) + 1 + forecast)[[1]]
 
   #### Statistical distributions required for modeling ####
-  x1 <- EnvStats::rgammaAlt(1e6, infection_to_onset$avg_days, infection_to_onset$coeff_variation) # infection-to-onset distribution
-  x2 <- EnvStats::rgammaAlt(1e6, onset_to_death$avg_days, onset_to_death$coeff_variation) # onset-to-death distribution
-  ecdf.saved <- ecdf(x1 + x2)
+  inf2onset <- EnvStats::rgammaAlt(1e6, infection_to_onset$avg_days, infection_to_onset$coeff_variation) # infection-to-onset distribution
+  onset2death <- EnvStats::rgammaAlt(1e6, onset_to_death$avg_days, onset_to_death$coeff_variation) # onset-to-death distribution
+  #8.5 ± 4.0 mean sd?
+  #11 (7–14) median (IQR)
+  icu_los <- readr::read_csv("los_icu.csv")[["x"]]
+  icu_los_mean <- mean(icu_los)
+  icu_los_coefvar <- sd(icu_los)/icu_los_mean
+  icu2resolution <- EnvStats::rgammaAlt(1e6, onset_to_death$avg_days, onset_to_death$coeff_variation) # onset-to-death distribution
+  inf2icu <- inf2onset + onset2death - icu2resolution
+  ecdf.saved <- ecdf(inf2icu)
+  icuecdf.saved <- ecdf(icu2resolution)
 
   # Add a padding to the serial interval if it doesn't contain enough rows
   padded_serial_interval <- get_padded_serial_interval(serial_interval, N2)
@@ -43,7 +51,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
   dates <- list()
   reported_cases <- list()
   deaths_by_location <- list()
-  stan_data <- list(M=length(available_locations), N=NULL, deaths=NULL, f=NULL, N0=6, # N0 = 6 to make it consistent with Rayleigh
+  stan_data <- list(M=length(available_locations), N=NULL, deaths=NULL, f=NULL, i2icu=NULL, N0=6, # N0 = 6 to make it consistent with Rayleigh
                     cases=NULL, icu_beds=NULL, SI=padded_serial_interval$fit[1:N2], features=NULL,
                     EpidemicStart = NULL, pop = NULL,
                     N2=N2, x=1:N2, P=n_covariates)
@@ -55,8 +63,9 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
   for(location_name in available_locations){
     result_list <- get_stan_data_for_location(location_name=location_name,
                                               population=population,
-                                              IFR=IFR, N2=N2,
+                                              ICUR=ICUR, IFR=IFR, N2=N2,
                                               ecdf.saved=ecdf.saved,
+                                              icuecdf.saved=icuecdf.saved,
                                               covid_data=covid_data,
                                               common_interventions=common_interventions)
 
@@ -68,6 +77,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
     stan_data$pop <- c(stan_data$pop, result_list$location_pop)
     stan_data$N <- c(stan_data$N, result_list$N)
     stan_data$f <- cbind(stan_data$f, result_list$f)
+    stan_data$i2icu <- cbind(stan_data$i2icu, result_list$i2icu)
     stan_data$deaths <- cbind(stan_data$deaths, result_list$deaths)
     stan_data$cases <- cbind(stan_data$cases, result_list$cases)
     stan_data$icu_beds <- cbind(stan_data$icu_beds, result_list$icu_beds)
@@ -99,7 +109,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
               "available_locations"=names(dates)))
 }
 
-get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.saved, covid_data, common_interventions){
+get_stan_data_for_location <- function(location_name, population, ICUR, IFR, N2, ecdf.saved, icuecdf.saved, covid_data, common_interventions){
 
   #### FILTER RELEVANT INFORMATION ####
   cat(sprintf("\n\nParsing data for location: %s\n", location_name))
@@ -142,13 +152,26 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   location_covariates <- location_covariates %>% select(-DATA) %>% as.matrix()
 
   #### CONVOLUTION ####
-  # IFR is the overall probability of dying given infection
-  convolution = function(u) (IFR * ecdf.saved(u))
+  # Considering 100% of the deaths occur in ICUs (clamped to avoid errors)
+  ICUFR <- pmax(pmin(IFR / ICUR, 1), 0)
 
-  f = rep(0,N2) # f is the probability of dying on day i given infection
+  # ICUR is the overall probability of going to ICU given infection
+  convolution = function(u) (ICUR * ecdf.saved(u))
+
+  f = rep(0,N2) # f is the probability of going to ICU on day i given infection
   f[1] = (convolution(1.5) - convolution(0))
   for(i in 2:N2) {
     f[i] = (convolution(i+.5) - convolution(i-.5))
+  }
+
+  #### CONVOLUTION ####
+  # ICUFR is the overall probability of dying given infection and ICU
+  icuconvolution = function(u) (ICUFR * icuecdf.saved(u))
+
+  i2icu = rep(0,N2) # f is the probability of dying on day i in the ICU
+  i2icu[1] = (icuconvolution(1.5) - icuconvolution(0))
+  for(i in 2:N2) {
+    i2icu[i] = (icuconvolution(i+.5) - icuconvolution(i-.5))
   }
 
   reported_cases <- as.vector(as.numeric(location_data$casos))
@@ -156,7 +179,7 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   cases <- c(as.vector(as.numeric(location_data$casos)), rep(-1, location_forecast))
   icu_beds <- c(as.vector(as.numeric(location_data$icu_beds)), rep(-1, location_forecast))
 
-  return(list(epidemic_start=epidemic_start, location_pop=location_pop, N=N, N2=N2, f=f,
+  return(list(epidemic_start=epidemic_start, location_pop=location_pop, N=N, N2=N2, f=f, i2icu=i2icu,
               deaths=deaths, cases=cases, icu_beds=icu_beds, x=1:N2,
               location_covariates=location_covariates,
               dates=location_data$data_ocorrencia,

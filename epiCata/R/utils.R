@@ -37,6 +37,7 @@ run_model_with_opt <- function(opt, default_locations){
                                       google_mobility_window_size = opt[["google_mobility_window_size"]])
   onset_to_death <- read_onset_to_death(opt[["onset_to_death"]])
   IFR <- read_IFR(opt[["ifr"]])
+  ICUR <- read_ICUR()
   serial_interval <- read_serial_interval(opt[["serial_interval"]])
   infection_to_onset <- read_infection_to_onset(opt[["infection_to_onset"]])
   population <- read_pop(opt[["population"]])
@@ -45,6 +46,7 @@ run_model_with_opt <- function(opt, default_locations){
                       interventions,
                       onset_to_death,
                       IFR,
+                      ICUR,
                       serial_interval,
                       infection_to_onset,
                       population)

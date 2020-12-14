@@ -137,6 +137,14 @@ read_IFR <- function(IFR_filename){
   IFR <- (weight_fatality %>% filter(State == "SC"))[,3]
 }
 
+read_ICUR <- function(ICU_filename=NULL){
+  # http://dx.doi.org/10.1590/1806-9282.66.8.1157
+  # In addition to a similar flu presentation, COVID-19 can manifest itself as a neurological syndrome, heart failure, or acute myocardial infarction7 , 8 . Most infections (80%) are mild. However, 6-10% will require transfer to the ICU9.
+  # So mean on 0.08 with a std that slightly overshoots the 6-10% range (No 95%  C.I. given)
+  #icu_pct ~ normal(0.08,0.015);
+  0.08
+}
+
 read_serial_interval <- function(serial_interval_filename){
   #### code to prepare `serial_interval` dataset goes here ####
   readr::read_csv(serial_interval_filename, col_names=c("X", "fit"), skip=1)
