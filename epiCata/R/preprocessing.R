@@ -66,8 +66,6 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR, ICU
                                               ICUR=ICUR, IFR=IFR, N2=N2,
                                               inf2icu_ecdf.saved = inf2icu_ecdf.saved,
                                               icu2r_ecdf.saved = icu2r_ecdf.saved,
-                                              ecdf.saved=ecdf.saved,
-                                              icuecdf.saved=icuecdf.saved,
                                               covid_data=covid_data,
                                               common_interventions=common_interventions)
 
@@ -79,7 +77,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR, ICU
     stan_data$pop <- c(stan_data$pop, result_list$location_pop)
     stan_data$N <- c(stan_data$N, result_list$N)
     stan_data$inf2icu <- cbind(stan_data$inf2icu, result_list$inf2icu)
-    stan_data$icu2d <- cbind(stan_data$i2icu, result_list$icu2d)
+    stan_data$icu2d <- cbind(stan_data$icu2d, result_list$icu2d)
     stan_data$deaths <- cbind(stan_data$deaths, result_list$deaths)
     stan_data$cases <- cbind(stan_data$cases, result_list$cases)
     stan_data$icu_beds <- cbind(stan_data$icu_beds, result_list$icu_beds)
@@ -95,6 +93,8 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR, ICU
     cat(sprintf("  > %s - %s\n", min(result_list$dates), max(result_list$dates)))
 
   }
+  #print(dim(stan_data$inf2icu))
+  #print(dim(stan_data$icu2d))
 
   if(length(stan_data$EpidemicStart)==1){
     stop("Model does not support only one region")

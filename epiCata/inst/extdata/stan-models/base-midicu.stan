@@ -92,11 +92,11 @@ transformed parameters {
         for (i in 2:N2){
           icu_prediction[i, m] = icu_noise[m] * dot_product(sub_col(prediction, 1, m, i-1), tail(inf2icu_rev[m], i-1));
           E_deaths[i,m] = ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(icu2d_rev[m], i-1));
-          #E_deaths[i,m] = (
-          #  ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(f_rev[m], i-1))
-          #  +
-          #  ifr_noise[m] * dot_product(sub_col(prediction, 1, m, i-1), tail(f_rev[m], i-1))
-          #);
+          //E_deaths[i,m] = (
+          //  ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(f_rev[m], i-1))
+          //  +
+          //  ifr_noise[m] * dot_product(sub_col(prediction, 1, m, i-1), tail(f_rev[m], i-1))
+          //);
         }
       }
     }
@@ -148,8 +148,8 @@ generated quantities {
         }
         E_deaths0[1, m]= 1e-15 * prediction0[1,m];
         for (i in 2:N2){
-          icu_prediction0[i, m] = icu_noise[m] * dot_product(sub_col(prediction0, 1, m, i-1), tail(i2icu_rev[m], i-1));
-          E_deaths0[i,m] = ifr_noise[m] * dot_product(sub_col(icu_prediction0, 1, m, i-1), tail(f_rev[m], i-1));
+          icu_prediction0[i, m] = icu_noise[m] * dot_product(sub_col(prediction0, 1, m, i-1), tail(inf2icu_rev[m], i-1));
+          E_deaths0[i,m] = ifr_noise[m] * dot_product(sub_col(icu_prediction0, 1, m, i-1), tail(icu2d_rev[m], i-1));
         }
       }
     }
