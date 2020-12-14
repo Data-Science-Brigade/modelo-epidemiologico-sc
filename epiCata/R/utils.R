@@ -211,12 +211,19 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
     N <- as.integer(max_date-min_date)+1
     N2 <- as.integer(max_forecast_date-min_date)+1
 
-    #### COMPUTE PREDICTIONS ####
+    #### COMPUTE CASE PREDICTIONS ####
     predicted_cases <- array(0, dim=N)
     predicted_cases_li <- array(0, dim=N)
     predicted_cases_ui <- array(0, dim=N)
     predicted_cases_li2 <- array(0, dim=N)
     predicted_cases_ui2 <- array(0, dim=N)
+
+    #### COMPUTE ICU PREDICTIONS ####
+    predicted_icu <- array(0, dim=N)
+    predicted_icu_li <- array(0, dim=N)
+    predicted_icu_ui <- array(0, dim=N)
+    predicted_icu_li2 <- array(0, dim=N)
+    predicted_icu_ui2 <- array(0, dim=N)
 
     #### COMPUTE ESTIMATED DEATHS ####
     estimated_deaths <- array(0, dim=N)
@@ -226,6 +233,10 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
     estimated_deaths_ui2 <- array(0, dim=N)
 
     #### COMPUTE FORECAST OF ESTIMATED DEATHS ####
+    estimated_icu_forecast <- array(0, dim=forecast+1)
+    estimated_icu_li_forecast <- array(0, dim=forecast+1)
+    estimated_icu_ui_forecast <- array(0, dim=forecast+1)
+
     estimated_deaths_forecast <- array(0, dim=forecast+1)
     estimated_deaths_li_forecast <- array(0, dim=forecast+1)
     estimated_deaths_ui_forecast <- array(0, dim=forecast+1)
@@ -241,6 +252,7 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
 
     #### Reported cases and deaths ####
     agg_reported_cases <- array(0, dim=fullN)
+    agg_reported_icu <- array(0, dim=fullN)
     agg_reported_deaths <- array(0, dim=fullN)
 
     for(location in location_names) {
@@ -269,6 +281,12 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
       predicted_cases_li2[agg_idx] <- predicted_cases_li2[agg_idx] + locations_data_df$predicted_min2[loc_idx]
       predicted_cases_ui2[agg_idx] <- predicted_cases_ui2[agg_idx] + locations_data_df$predicted_max2[loc_idx]
 
+      predicted_icu[agg_idx] <- predicted_icu[agg_idx] + locations_data_df$predicted_icu[loc_idx]
+      predicted_icu_li[agg_idx] <- predicted_icu_li[agg_idx] + locations_data_df$predicted_icu_min[loc_idx]
+      predicted_icu_ui[agg_idx] <- predicted_icu_ui[agg_idx] + locations_data_df$predicted_icu_max[loc_idx]
+      predicted_icu_li2[agg_idx] <- predicted_icu_li2[agg_idx] + locations_data_df$predicted_icu_min2[loc_idx]
+      predicted_icu_ui2[agg_idx] <- predicted_icu_ui2[agg_idx] + locations_data_df$predicted_icu_max2[loc_idx]
+
       #### COMPUTE ESTIMATED DEATHS ####
       estimated_deaths[agg_idx] <- estimated_deaths[agg_idx] + locations_data_df$estimated_deaths[loc_idx]
       estimated_deaths_li[agg_idx] <- estimated_deaths_li[agg_idx] + locations_data_df$death_min[loc_idx]
@@ -276,6 +294,10 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
       estimated_deaths_li2[agg_idx] <- estimated_deaths_li2[agg_idx] + locations_data_df$death_min2[loc_idx]
       estimated_deaths_ui2[agg_idx] <- estimated_deaths_ui2[agg_idx] + locations_data_df$death_max2[loc_idx]
 
+      #### COMPUTE FORECAST OF ICU BEDS ####
+      estimated_icu_forecast <- estimated_icu_forecast + locations_forecast_df$estimated_icu_forecast
+      estimated_icu_li_forecast <- estimated_icu_li_forecast + locations_forecast_df$icu_min_forecast
+      estimated_icu_ui_forecast <- estimated_icu_ui_forecast + locations_forecast_df$icu_max_forecast
       #### COMPUTE FORECAST OF ESTIMATED DEATHS ####
       estimated_deaths_forecast <- estimated_deaths_forecast + locations_forecast_df$estimated_deaths_forecast
       estimated_deaths_li_forecast <- estimated_deaths_li_forecast + locations_forecast_df$death_min_forecast
@@ -305,6 +327,8 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
 
       agg_reported_cases[orig_agg_idx] <- agg_reported_cases[orig_agg_idx] + original_data$casos
 
+      agg_reported_icu[orig_agg_idx] <- agg_reported_icu[orig_agg_idx] + original_data$icu_beds
+
       agg_reported_deaths[orig_agg_idx] <- agg_reported_deaths[orig_agg_idx] + original_data$obitos
     }
     # Average on Rt
@@ -319,11 +343,17 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
       "location_name" = rep(aggregate_name, N),
       "reported_cases" = agg_reported_cases[(missingN+1):(missingN+N)],
       "deaths" = agg_reported_deaths[(missingN+1):(missingN+N)],
+      "icu_beds" = agg_reported_icu[(missingN+1):(missingN+N)],
       "predicted_cases" = predicted_cases,
       "predicted_min" = predicted_cases_li,
       "predicted_max" = predicted_cases_ui,
       "predicted_min2" = predicted_cases_li2,
       "predicted_max2" = predicted_cases_ui2,
+      "predicted_icu" = predicted_icu,
+      "predicted_icu_min" = predicted_icu_li,
+      "predicted_icu_max" = predicted_icu_ui,
+      "predicted_icu_min2" = predicted_icu_li2,
+      "predicted_icu_max2" = predicted_icu_ui2,
       "estimated_deaths" = estimated_deaths,
       "death_min" = estimated_deaths_li,
       "death_max"= estimated_deaths_ui,
@@ -338,6 +368,7 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
     missing_original_data <- data.frame("time" = min_missing_date + days(0:(fullN-1)),
                                         "location_name" = rep(aggregate_name, fullN),
                                         "reported_cases" = agg_reported_cases,
+                                        "icu_beds" = agg_reported_icu,
                                         "deaths" = agg_reported_deaths) %>%
       mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time<min_date) %>%
       select(-c(cum_cases))
@@ -352,6 +383,10 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
              predicted_cases_c = cumsum(predicted_cases),
              predicted_min_c = cumsum(predicted_min),
              predicted_max_c = cumsum(predicted_max),
+             icu_beds_c = cumsum(icu_beds),
+             predicted_icu_c = cumsum(predicted_icu),
+             predicted_icu_min_c = cumsum(predicted_icu_min),
+             predicted_icu_max_c = cumsum(predicted_icu_max),
              deaths_c = cumsum(deaths),
              estimated_deaths_c =  cumsum(estimated_deaths),
              death_min_c = cumsum(death_min),
@@ -360,6 +395,9 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
 
     data_location_forecast <- data.frame("time" = max_date + days(0:forecast),
                                          "location_name" = rep(aggregate_name, forecast + 1),
+                                         "estimated_icu_forecast" = estimated_icu_forecast,
+                                         "icu_min_forecast" = estimated_icu_li_forecast,
+                                         "icu_max_forecast"= estimated_icu_ui_forecast,
                                          "estimated_deaths_forecast" = estimated_deaths_forecast,
                                          "death_min_forecast" = estimated_deaths_li_forecast,
                                          "death_max_forecast"= estimated_deaths_ui_forecast)
@@ -440,7 +478,7 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
 
     estimated_deaths_forecast_samples[,1:(forecast+1)] <- estimated_deaths_samples[,1:(forecast+1)] + model_output$out$E_deaths[,loc_N_l:(loc_N_l+forecast),i]
 
-    estimated_icu_forecast_samples[,1:(forecast+1)] <- estimated_icu_samples[,1:(forecast+1)] + model_output$out$icu_prediction[,loc_N_l:(loc_N_l+forecast),i]
+    estimated_icu_forecast_samples[,1:(forecast+1)] <- estimated_icu_forecast_samples[,1:(forecast+1)] + model_output$out$icu_prediction[,loc_N_l:(loc_N_l+forecast),i]
 
     # (UNUSED) Getting cases and deaths from the data available for the model's input
     #agg_reported_cases[agg_idx] <-agg_reported_cases[orig_agg_idx] + model_output$stan_list$reported_cases[[i]]
