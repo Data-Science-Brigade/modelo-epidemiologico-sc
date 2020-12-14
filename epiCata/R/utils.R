@@ -395,11 +395,14 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
 
   pred_dims <- dim(model_output$out$prediction)
   prediction_samples <- array(0, dim=c(pred_dims[[1]],N))
+  icu_samples <- array(0, dim=c(pred_dims[[1]],N))
   estimated_deaths_samples <- array(0, dim=c(pred_dims[[1]],N))
   rt_samples <- array(0, dim=c(pred_dims[[1]],N))
   rt_samples_n <- array(0, dim=c(pred_dims[[1]],N))
   estimated_deaths_forecast_samples <- array(0, dim=c(pred_dims[[1]],forecast+1))
+  estimated_icu_forecast_samples <- array(0, dim=c(pred_dims[[1]],forecast+1))
   agg_reported_cases <- array(0, dim=fullN)
+  agg_reported_icu <- array(0, dim=fullN)
   agg_reported_deaths <- array(0, dim=fullN)
 
   for(location in location_names) {
@@ -421,6 +424,8 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
 
     prediction_samples[,agg_idx] <- prediction_samples[,agg_idx] + model_output$out$prediction[,loc_idx,i]
 
+    icu_samples[,agg_idx] <- icu_samples[,agg_idx] + model_output$out$icu_prediction[,loc_idx,i]
+
     estimated_deaths_samples[,agg_idx] <- estimated_deaths_samples[,agg_idx] + model_output$out$E_deaths[,loc_idx,i]
 
     # (UNUSED) Unweighted
@@ -434,6 +439,8 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
     rt_samples_n[,agg_idx] <- rt_samples_n[,agg_idx] + model_output$stan_list$stan_data$pop[i]
 
     estimated_deaths_forecast_samples[,1:(forecast+1)] <- estimated_deaths_samples[,1:(forecast+1)] + model_output$out$E_deaths[,loc_N_l:(loc_N_l+forecast),i]
+
+    estimated_icu_forecast_samples[,1:(forecast+1)] <- estimated_icu_samples[,1:(forecast+1)] + model_output$out$icu_prediction[,loc_N_l:(loc_N_l+forecast),i]
 
     # (UNUSED) Getting cases and deaths from the data available for the model's input
     #agg_reported_cases[agg_idx] <-agg_reported_cases[orig_agg_idx] + model_output$stan_list$reported_cases[[i]]
@@ -453,17 +460,26 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
 
     agg_reported_cases[orig_agg_idx] <- agg_reported_cases[orig_agg_idx] + original_data$casos
 
+    agg_reported_icu[orig_agg_idx] <- agg_reported_icu[orig_agg_idx] + original_data$icu
+
     agg_reported_deaths[orig_agg_idx] <- agg_reported_deaths[orig_agg_idx] + original_data$obitos
   }
   # Average on Rt
   rt_samples <- rt_samples/rt_samples_n
 
-  #### COMPUTE PREDICTIONS ####
+  #### COMPUTE CASE PREDICTIONS ####
   predicted_cases <- colMeans(prediction_samples)
   predicted_cases_li <- matrixStats::colQuantiles(prediction_samples, probs=.025)
   predicted_cases_ui <- matrixStats::colQuantiles(prediction_samples, probs=.975)
   predicted_cases_li2 <- matrixStats::colQuantiles(prediction_samples, probs=.25)
   predicted_cases_ui2 <- matrixStats::colQuantiles(prediction_samples, probs=.75)
+
+  #### COMPUTE ICU PREDICTIONS ####
+  predicted_icu <- colMeans(icu_samples)
+  predicted_icu_li <- matrixStats::colQuantiles(icu_samples, probs=.025)
+  predicted_icu_ui <- matrixStats::colQuantiles(icu_samples, probs=.975)
+  predicted_icu_li2 <- matrixStats::colQuantiles(icu_samples, probs=.25)
+  predicted_icu_ui2 <- matrixStats::colQuantiles(icu_samples, probs=.75)
 
   #### COMPUTE ESTIMATED DEATHS ####
   estimated_deaths <- colMeans(estimated_deaths_samples)
@@ -479,6 +495,13 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
   estimated_deaths_li2_forecast <- matrixStats::colQuantiles(estimated_deaths_forecast_samples, probs=.25)
   estimated_deaths_ui2_forecast <- matrixStats::colQuantiles(estimated_deaths_forecast_samples, probs=.75)
 
+  #### COMPUTE FORECAST OF ESTIMATED DEATHS ####
+  estimated_icu_forecast <- colMeans(estimated_icu_forecast_samples)
+  estimated_icu_li_forecast <- matrixStats::colQuantiles(estimated_icu_forecast_samples, probs=.025)
+  estimated_icu_ui_forecast <- matrixStats::colQuantiles(estimated_icu_forecast_samples, probs=.975)
+  estimated_icu_li2_forecast <- matrixStats::colQuantiles(estimated_icu_forecast_samples, probs=.25)
+  estimated_icu_ui2_forecast <- matrixStats::colQuantiles(estimated_icu_forecast_samples, probs=.75)
+
   #### COMPUTE RT ####
   rt <- colMeans(rt_samples)
   rt_li <- matrixStats::colQuantiles(rt_samples,probs=.025)
@@ -491,11 +514,17 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
                               "location_name" = rep(aggregate_name, N),
                               "reported_cases" = agg_reported_cases[(missingN+1):(missingN+N)],
                               "deaths" = agg_reported_deaths[(missingN+1):(missingN+N)],
+                              "icu_beds" = agg_reported_icu[(missingN+1):(missingN+N)],
                               "predicted_cases" = predicted_cases,
                               "predicted_min" = predicted_cases_li,
                               "predicted_max" = predicted_cases_ui,
                               "predicted_min2" = predicted_cases_li2,
                               "predicted_max2" = predicted_cases_ui2,
+                              "predicted_icu" = predicted_icu,
+                              "predicted_icu_min" = predicted_icu_li,
+                              "predicted_icu_max" = predicted_icu_ui,
+                              "predicted_icu_min2" = predicted_icu_li2,
+                              "predicted_icu_max2" = predicted_icu_ui2,
                               "estimated_deaths" = estimated_deaths,
                               "death_min" = estimated_deaths_li,
                               "death_max"= estimated_deaths_ui,
@@ -510,6 +539,7 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
   missing_original_data <- data.frame("time" = min_missing_date + days(0:(fullN-1)),
                                       "location_name" = rep(aggregate_name, fullN),
                                       "reported_cases" = agg_reported_cases,
+                                      "icu_beds" = agg_reported_icu,
                                       "deaths" = agg_reported_deaths) %>%
     mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time<min_date) %>%
     select(-c(cum_cases))
@@ -524,6 +554,10 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
            predicted_cases_c = cumsum(predicted_cases),
            predicted_min_c = cumsum(predicted_min),
            predicted_max_c = cumsum(predicted_max),
+           icu_beds_c = cumsum(icu_beds),
+           predicted_icu_c = cumsum(predicted_icu),
+           predicted_icu_min_c = cumsum(predicted_icu_min),
+           predicted_icu_max_c = cumsum(predicted_icu_max),
            deaths_c = cumsum(deaths),
            estimated_deaths_c =  cumsum(estimated_deaths),
            death_min_c = cumsum(death_min),
@@ -532,9 +566,12 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
 
   data_location_forecast <- data.frame("time" = max_date + days(0:forecast),
                                        "location_name" = rep(aggregate_name, forecast + 1),
+                                       "estimated_icu_forecast" = estimated_icu_forecast,
+                                       "icu_min_forecast" = estimated_icu_li_forecast,
+                                       "icu_max_forecast"= estimated_icu_ui_forecast,
                                        "estimated_deaths_forecast" = estimated_deaths_forecast,
                                        "death_min_forecast" = estimated_deaths_li_forecast,
-                                       "death_max_forecast"= estimated_deaths_ui_forecast)
+                                       "death_max_forecast"= estimated_deaths_ui_forecast,)
 
   list(data_location=data_location, data_location_forecast=data_location_forecast)
 }
