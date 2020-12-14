@@ -609,7 +609,7 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
                                        "icu_max_forecast"= estimated_icu_ui_forecast,
                                        "estimated_deaths_forecast" = estimated_deaths_forecast,
                                        "death_min_forecast" = estimated_deaths_li_forecast,
-                                       "death_max_forecast"= estimated_deaths_ui_forecast,)
+                                       "death_max_forecast"= estimated_deaths_ui_forecast)
 
   list(data_location=data_location, data_location_forecast=data_location_forecast)
 }
