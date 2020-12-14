@@ -7,8 +7,8 @@ data {
   int cases[N2,M]; // reported cases
   int icu_beds[N2,M]; // reported icu bed occupants
   int deaths[N2, M]; // reported deaths -- the rows with i > N contain -1 and should be ignored
-  matrix[N2, M] f; // Infected to ICU probability
-  matrix[N2, M] i2icu; // ICU to death probability
+  matrix[N2, M] inf2icu; // Infected to ICU probability
+  matrix[N2, M] icu2d; // ICU to death probability
   matrix[N2, P] X[M]; // features matrix
   int EpidemicStart[M];
   real pop[M];
@@ -17,8 +17,8 @@ data {
 
 transformed data {
   vector[N2] SI_rev; // SI in reverse order
-  vector[N2] f_rev[M]; // f in reversed order
-  vector[N2] i2icu_rev[M]; // i2icu in reverse order
+  vector[N2] inf2icu_rev[M]; // f in reversed order
+  vector[N2] icu2d_rev[M]; // i2icu in reverse order
 
   for(i in 1:N2) {
     SI_rev[i] = SI[N2-i+1];
@@ -26,8 +26,8 @@ transformed data {
 
   for(m in 1:M){
     for(i in 1:N2) {
-     f_rev[m, i] = f[N2-i+1,m];
-      i2icu_rev[m, i] = i2icu[N2-i+1, m];
+      inf2icu_rev[m, i] = inf2icu[N2-i+1,m];
+      icu2d_rev[m, i] = icu2d[N2-i+1, m];
     }
   }
 }
@@ -90,8 +90,13 @@ transformed parameters {
         }
         E_deaths[1, m]= 1e-15 * prediction[1,m];
         for (i in 2:N2){
-          icu_prediction[i, m] = icu_noise[m] * dot_product(sub_col(prediction, 1, m, i-1), tail(i2icu_rev[m], i-1));
-          E_deaths[i,m] = ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(f_rev[m], i-1));
+          icu_prediction[i, m] = icu_noise[m] * dot_product(sub_col(prediction, 1, m, i-1), tail(inf2icu_rev[m], i-1));
+          E_deaths[i,m] = ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(icu2d_rev[m], i-1));
+          #E_deaths[i,m] = (
+          #  ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(f_rev[m], i-1))
+          #  +
+          #  ifr_noise[m] * dot_product(sub_col(prediction, 1, m, i-1), tail(f_rev[m], i-1))
+          #);
         }
       }
     }
