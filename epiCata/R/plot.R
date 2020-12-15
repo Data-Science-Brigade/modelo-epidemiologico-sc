@@ -395,6 +395,8 @@ plot_graph_C <- function(location_name, model_output, x_breaks, dfs){
 
 #### FORECAST ####
 
+## DEATHS ##
+
 make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_breaks=NULL, max_y_breaks=NULL, week_max_y_breaks=NULL, save_path="./"){
   available_locations <- model_output$stan_list$available_locations
 
@@ -563,7 +565,7 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
                      aes(fill=as.character(key)),
                      label.padding = unit(0.2, "lines"), color='#FCFCFC', size=4, alpha=1, show.legend=FALSE) +
     geom_label(data=cumulative_deaths %>% filter(key == "Cenário Real", time >= ymd(reference_date)),
-                     label.padding = unit(0.2, "lines"), size=4) +
+               label.padding = unit(0.2, "lines"), size=4) +
     xlab("Data") +
     ylab("Número TOTAL de óbitos\n") +
     scale_x_date(labels = date_format("%e %b"),
@@ -607,10 +609,190 @@ get_cumulative_df <- function(data_location, data_location_forecast, reference_d
   cumulative_deaths
 }
 
+## ICU ##
+
+make_all_icu_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_breaks=NULL, max_y_breaks=NULL, save_path="./"){
+  available_locations <- model_output$stan_list$available_locations
+
+  for(location_name in available_locations){
+    make_icu_forecast_plot(location_name, model_output, auto_save=TRUE, save_path=save_path)
+  }
+  if(!is.null(aggregate_name)){
+    make_icu_forecast_plot(available_locations, model_output, auto_save=TRUE, aggregate_name = aggregate_name, save_path=save_path)
+  }
+}
+
+make_icu_forecast_plot <- function(location_names, model_output, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, aggregate_name=NULL, save_path="./"){
+  Sys.setlocale("LC_ALL","pt_BR.utf8")
+  require(tidyverse)
+  require(ggrepel)
+  require(ggplot2)
+  require(scales)
+  require(lubridate)
+  next_week <- FALSE
+
+  if(missing(aggregate_name) && length(location_names)==1) {
+    aggregate_name <- location_names[[1]]
+  } else if(is.null(aggregate_name) && length(location_names)>1) {
+    stop("You must either pass an aggregate name or pass a single location")
+  }
+
+  cat(sprintf("\n> Making ICU forecast plots for %s", aggregate_name))
+
+  reference_date_str <- model_output$reference_date_str
+  dfs <- get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
+
+  df_rts <- dfs$data_location %>% filter(row_number() == n()) %>% select(rt_min, rt, rt_max)
+
+  cum_icu <- get_cumulative_icu_df(data_location=dfs$data_location,
+                                   dfs$data_location_forecast,
+                                   reference_date = ymd(reference_date_str))
+
+  p <- make_cumulative_icu_plot(aggregate_name, cum_icu, df_rts, ymd(reference_date_str), next_week=next_week,
+                            min_y_break=min_y_break,
+                            max_y_break=max_y_break)
+  p <- p + ggtitle(paste0("(", aggregate_name, ") Cenarios do Modelo do dia ", strftime(ymd(reference_date_str), "%d/%m/%Y")))
+
+  if(auto_save){
+    plot_filename <- sprintf("%sfigures/%s/ICU_FORECAST_%s_%s_%s.png",
+                             save_path,
+                             reference_date_str,
+                             aggregate_name,
+                             ifelse(next_week, "_week", ""),
+                             model_output$filename_suffix, ".png")
+    cat(sprintf("\n   Saving %s", plot_filename))
+    ggsave(file= plot_filename, p, width = 11.08, height=4.8, type="cairo")
+  }
+  p
+}
+
+make_cumulative_icu_plot <- function(location_name, cumulative_icu, df_rts=NULL,
+                                 reference_date, max_date=NULL,
+                                 next_week=FALSE,
+                                 min_y_break=NULL,
+                                 max_y_break=NULL){
+  require(tidyverse)
+  require(ggplot2)
+  require(scales)
+  require(lubridate)
+
+  cumulative_icu <- cumulative_icu %>%
+    gather("key" = key, "value" = value, -time) %>%
+    filter(time >= ymd(reference_date) - days(1)) %>% drop_na()
+
+  if(is.null(df_rts)){
+    fill_labels <- c("Cenario 1", "Cenario 2", "Cenario 3", "Leitos de UTI preenchidos")
+  }else{
+    fill_labels <- c(sprintf("Cenario 1 (Rt = %.2f)", df_rts$rt_min),
+                     sprintf("Cenario 2 (Rt = %.2f)", df_rts$rt),
+                     sprintf("Cenario 3 (Rt = %.2f)", df_rts$rt_max), "Leitos de UTI preenchidos")
+  }
+
+  cumulative_icu$key <-
+    factor(cumulative_icu$key,
+           levels=c("Cenario 1", "Cenario 2", "Cenario 3", "Leitos de UTI preenchidos"),
+           labels=fill_labels)
+
+  color_vals <- c("#FFA600", "#FF6F00", "#FF0000", "#7300FF")
+  names(color_vals) <- levels(cumulative_icu$key)
+
+  x_breaks_by <- ifelse(next_week, "days", "weeks")
+
+  x_min <- ymd(reference_date) - days(1)
+
+  x_max <-
+    if(next_week){
+      ymd(reference_date) + days(6)
+    }else{
+      max(cumulative_icu$time)
+    }
+
+  x_breaks <- seq(x_min, x_max,by=x_breaks_by)
+  cumulative_icu <- cumulative_icu %>% filter(time >= ymd(reference_date) - days(1))
+
+  if(next_week){
+    cumulative_icu <- cumulative_icu %>% filter(time <= x_max)
+  }
+
+  p <- ggplot(mapping=aes(x=time, y=value, label=value, color=key, group=key)) +
+    geom_line(data=cumulative_icu %>% filter(key != "Leitos de UTI ocupados"),
+              size=0.5, alpha=0.5, linetype="dashed")
+
+  p <- p +
+    geom_point(data=cumulative_icu %>% filter(key != "Leitos de UTI ocupados", time %in% x_breaks), alpha=1, size=2)
+
+  p <- p + geom_label(data=cumulative_icu %>% filter(time == ymd(reference_date) - days(1)),
+                      color='#FCFCFC', fill='#C8255f', size=4, show.legend = FALSE)
+
+  if(is.null(min_y_break)){
+    min_y_break <- min(cumulative_icu$value)
+    n_integer_digits <- floor(log10(min_y_break)) + 1
+    min_y_break <- floor(min_y_break/10^(n_integer_digits - 1)) * 10^(n_integer_digits - 1)
+  }
+
+  if(is.null(max_y_break)){
+    max_y_break <- max(cumulative_icu$value)
+    max_y_break <- round_y_breaks(max_y_break, min_y_break=min_y_break)
+  }
+
+  y_separation <- floor(max_y_break - min_y_break)
+
+  #y_breaks <- seq(min_y_break, max_y_break + (y_separation %% 4), floor(y_separation/4))
+  y_breaks <- seq(min_y_break, max_y_break, floor(y_separation/4))
+  print(y_breaks)
+  print(y_separation)
+
+  p <- p +
+    geom_label_repel(data=cumulative_icu %>% filter(time >= ymd(reference_date), time %in% x_breaks),
+                     aes(fill=as.character(key)),
+                     label.padding = unit(0.2, "lines"), color='#FCFCFC', size=4, alpha=1, show.legend=FALSE) +
+    geom_label(data=cumulative_icu %>% filter(key == "Cenário Real", time >= ymd(reference_date)),
+               label.padding = unit(0.2, "lines"), size=4) +
+    xlab("Data") +
+    ylab("Número TOTAL de leitos de UTI\n") +
+    scale_x_date(labels = date_format("%e %b"),
+                 breaks=x_breaks,
+                 limits=c(min(cumulative_icu$time), max(cumulative_icu$time))) +
+    scale_y_continuous(limits=c(min(y_breaks), max(y_breaks)), breaks=y_breaks) +
+    theme_dsb_light() +
+    theme(panel.grid.major.x = element_line(linetype = "dotted", color = "grey", size=0.4)) +
+    scale_color_manual(name="Cenarios", values=color_vals) +
+    scale_fill_manual(name="Cenarios", values=color_vals)
+
+  p
+}
+
+get_cumulative_icu_df <- function(data_location, data_location_forecast, reference_date){
+
+  #### Cumulative ####
+  cumulative_icu_min <-
+    bind_rows(data_location %>% select(time, icu_beds) %>% filter(time < ymd(reference_date)),
+              data_location_forecast %>% filter(time >= ymd(reference_date)) %>%
+                rename(icu_beds=icu_min_forecast) %>% select(time, icu_beds)) %>%
+    mutate(`Cenario 1`=round(cumsum(icu_beds))) %>% select(-icu_beds)
+
+  cumulative_icu_medium <-
+    bind_rows(data_location %>% select(time, icu_beds) %>% filter(time < ymd(reference_date)),
+              data_location_forecast %>% filter(time >= ymd(reference_date)) %>%
+                rename(icu_beds=estimated_icu_forecast) %>% select(time, icu_beds)) %>%
+    mutate(`Cenario 2`=round(cumsum(icu_beds))) %>% select(-icu_beds)
+
+  cumulative_icu_max <-
+    bind_rows(data_location %>% select(time, icu_beds) %>% filter(time < ymd(reference_date)),
+              data_location_forecast %>% filter(time >= ymd(reference_date)) %>%
+                rename(icu_beds=icu_max_forecast) %>% select(time, icu_beds)) %>%
+    mutate(`Cenario 3`=round(cumsum(icu_beds))) %>% select(-icu_beds)
+
+
+  cumulative_icu <- cumulative_icu_max %>%
+    left_join(cumulative_icu_medium, by=c("time")) %>%
+    left_join(cumulative_icu_min , by=c("time"))
+
+  cumulative_icu
+}
+
 
 ### Recent C plots ###
-
-
 
 make_all_C_plot <- function(model_output, min_x_break=NULL, aggregate_name=NULL, save_path="./"){
   available_locations <- model_output$stan_list$available_locations
