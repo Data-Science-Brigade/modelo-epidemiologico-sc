@@ -9,6 +9,7 @@ data {
   int deaths[N2, M]; // reported deaths -- the rows with i > N contain -1 and should be ignored
   matrix[N2, M] inf2icu; // Infected to ICU probability
   matrix[N2, M] icu2d; // ICU to death probability
+  matrix[N2, M] icu2r; // ICU to recovery probability
   matrix[N2, P] X[M]; // features matrix
   int EpidemicStart[M];
   real pop[M];
@@ -19,6 +20,7 @@ transformed data {
   vector[N2] SI_rev; // SI in reverse order
   vector[N2] inf2icu_rev[M]; // f in reversed order
   vector[N2] icu2d_rev[M]; // i2icu in reverse order
+  vector[N2] icu2r_rev[M]; // i2icu in reverse order
 
   for(i in 1:N2) {
     SI_rev[i] = SI[N2-i+1];
@@ -28,6 +30,7 @@ transformed data {
     for(i in 1:N2) {
       inf2icu_rev[m, i] = inf2icu[N2-i+1,m];
       icu2d_rev[m, i] = icu2d[N2-i+1, m];
+      icu2r_rev[m, i] = icu2r[N2-i+1, m];
     }
   }
 }
@@ -56,6 +59,9 @@ parameters {
 transformed parameters {
     matrix[N2, M] prediction = rep_matrix(0,N2,M);
     matrix[N2, M] icu_prediction = rep_matrix(0,N2,M);
+    matrix[N2, M] icu_rec_prediction = rep_matrix(0,N2,M);
+    //matrix<lower=0>[N2, M] cumm_icu_prediction = rep_matrix(0,N2,M);
+    matrix[N2, M] cumm_icu_prediction = rep_matrix(0,N2,M);
     matrix[N2, M] E_deaths  = rep_matrix(0,N2,M);
     matrix[N2, M] Rt = rep_matrix(0,N2,M);
     matrix[N2, M] Rt_adj = Rt;
@@ -91,7 +97,9 @@ transformed parameters {
         E_deaths[1, m]= 1e-15 * prediction[1,m];
         for (i in 2:N2){
           icu_prediction[i, m] = icu_noise[m] * dot_product(sub_col(prediction, 1, m, i-1), tail(inf2icu_rev[m], i-1));
+          icu_rec_prediction[i, m] = ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(icu2r_rev[m], i-1));
           E_deaths[i,m] = ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(icu2d_rev[m], i-1));
+          cumm_icu_prediction[i,m] = cumm_icu_prediction[i-1,m] + icu_prediction[i-1,m] - icu_rec_prediction[i-1,m];
           //E_deaths[i,m] = (
           //  ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(f_rev[m], i-1))
           //  +
@@ -123,7 +131,7 @@ model {
   infection_overestimate ~ normal(11.5,2);
 
   for(m in 1:M){
-    icu_beds[EpidemicStart[m]:N[m], m] ~ neg_binomial_2(icu_prediction[EpidemicStart[m]:N[m], m][m], phi);
+    icu_beds[EpidemicStart[m]:N[m], m] ~ neg_binomial_2(cumm_icu_prediction[EpidemicStart[m]:N[m], m][m], phi);
     cases[EpidemicStart[m]:N[m], m] ~ neg_binomial_2(prediction[EpidemicStart[m]:N[m], m] / infection_overestimate[m], phi);
     deaths[EpidemicStart[m]:N[m], m] ~ neg_binomial_2(E_deaths[EpidemicStart[m]:N[m], m], phi);
    }
@@ -133,6 +141,8 @@ generated quantities {
     matrix[N2, M] prediction0 = rep_matrix(0,N2,M);
     matrix[N2, M] E_deaths0  = rep_matrix(0,N2,M);
     matrix[N2, M] icu_prediction0  = rep_matrix(0,N2,M);
+    matrix[N2, M] icu_rec_prediction0 = rep_matrix(0,N2,M);
+    matrix[N2, M] cumm_icu_prediction0 = rep_matrix(0,N2,M);
 
     {
       matrix[N2,M] cumm_sum0 = rep_matrix(0,N2,M);
@@ -149,7 +159,10 @@ generated quantities {
         E_deaths0[1, m]= 1e-15 * prediction0[1,m];
         for (i in 2:N2){
           icu_prediction0[i, m] = icu_noise[m] * dot_product(sub_col(prediction0, 1, m, i-1), tail(inf2icu_rev[m], i-1));
+          icu_rec_prediction0[i, m] = ifr_noise[m] * dot_product(sub_col(icu_prediction0, 1, m, i-1), tail(icu2r_rev[m], i-1));
           E_deaths0[i,m] = ifr_noise[m] * dot_product(sub_col(icu_prediction0, 1, m, i-1), tail(icu2d_rev[m], i-1));
+          cumm_icu_prediction0[i,m] = cumm_icu_prediction[i-1,m] + icu_prediction0[i-1,m] - icu_rec_prediction0[i-1,m];
+
         }
       }
     }

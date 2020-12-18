@@ -51,7 +51,8 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR, ICU
   dates <- list()
   reported_cases <- list()
   deaths_by_location <- list()
-  stan_data <- list(M=length(available_locations), N=NULL, deaths=NULL, inf2icu=NULL, icu2d=NULL, N0=6, # N0 = 6 to make it consistent with Rayleigh
+  stan_data <- list(M=length(available_locations), N=NULL, deaths=NULL,
+                    inf2icu=NULL, icu2d=NULL, icu2r=NULL, N0=6, # N0 = 6 to make it consistent with Rayleigh
                     cases=NULL, icu_beds=NULL, SI=padded_serial_interval$fit[1:N2], features=NULL,
                     EpidemicStart = NULL, pop = NULL,
                     N2=N2, x=1:N2, P=n_covariates)
@@ -78,6 +79,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR, ICU
     stan_data$N <- c(stan_data$N, result_list$N)
     stan_data$inf2icu <- cbind(stan_data$inf2icu, result_list$inf2icu)
     stan_data$icu2d <- cbind(stan_data$icu2d, result_list$icu2d)
+    stan_data$icu2r <- cbind(stan_data$icu2r, result_list$icu2r)
     stan_data$deaths <- cbind(stan_data$deaths, result_list$deaths)
     stan_data$cases <- cbind(stan_data$cases, result_list$cases)
     stan_data$icu_beds <- cbind(stan_data$icu_beds, result_list$icu_beds)
@@ -169,12 +171,19 @@ get_stan_data_for_location <- function(location_name, population, ICUR, IFR, N2,
 
   #### CONVOLUTION ####
   # ICUFR is the overall probability of dying given infection and ICU
-  icuconvolution = function(u) (ICUFR * icu2r_ecdf.saved(u))
+  icudconvolution = function(u) (ICUFR * icu2r_ecdf.saved(u))
 
   icu2d = rep(0,N2) # f is the probability of dying on day i in the ICU
-  icu2d[1] = (icuconvolution(1.5) - icuconvolution(0))
+  icu2d[1] = (icudconvolution(1.5) - icudconvolution(0))
   for(i in 2:N2) {
-    icu2d[i] = (icuconvolution(i+.5) - icuconvolution(i-.5))
+    icu2d[i] = (icudconvolution(i+.5) - icudconvolution(i-.5))
+  }
+
+  icurconvolution = function(u) ((1-ICUFR) * icu2r_ecdf.saved(u))
+  icu2r = rep(0,N2) # f is the probability of recovering on day i in the ICU
+  icu2r[1] = (icurconvolution(1.5) - icurconvolution(0))
+  for(i in 2:N2) {
+    icu2r[i] = (icurconvolution(i+.5) - icurconvolution(i-.5))
   }
 
   reported_cases <- as.vector(as.numeric(location_data$casos))
@@ -183,7 +192,7 @@ get_stan_data_for_location <- function(location_name, population, ICUR, IFR, N2,
   icu_beds <- c(as.vector(as.numeric(location_data$icu_beds)), rep(-1, location_forecast))
 
   return(list(epidemic_start=epidemic_start, location_pop=location_pop, N=N, N2=N2,
-              inf2icu=inf2icu, icu2d=icu2d,
+              inf2icu=inf2icu, icu2d=icu2d, icu2r=icu2r,
               deaths=deaths, cases=cases, icu_beds=icu_beds, x=1:N2,
               location_covariates=location_covariates,
               dates=location_data$data_ocorrencia,

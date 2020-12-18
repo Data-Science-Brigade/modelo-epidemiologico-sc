@@ -75,9 +75,9 @@ run_model_with_opt <- function(opt, default_locations){
   model_output[["covid_data"]] <- covid_data
   model_output <- save_fitted_model(model_output, opt[["reference_date"]], save_path=opt[["save_path"]])
 
-  make_all_three_panel_plot(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
+  #make_all_three_panel_plot(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
 
-  make_all_forecast_plots(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
+  #make_all_forecast_plots(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
 
   model_output
 }
@@ -462,7 +462,7 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
 
     prediction_samples[,agg_idx] <- prediction_samples[,agg_idx] + model_output$out$prediction[,loc_idx,i]
 
-    icu_samples[,agg_idx] <- icu_samples[,agg_idx] + model_output$out$icu_prediction[,loc_idx,i]
+    icu_samples[,agg_idx] <- icu_samples[,agg_idx] + model_output$out$cumm_icu_prediction[,loc_idx,i]
 
     estimated_deaths_samples[,agg_idx] <- estimated_deaths_samples[,agg_idx] + model_output$out$E_deaths[,loc_idx,i]
 
@@ -478,7 +478,7 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
 
     estimated_deaths_forecast_samples[,1:(forecast+1)] <- estimated_deaths_samples[,1:(forecast+1)] + model_output$out$E_deaths[,loc_N_l:(loc_N_l+forecast),i]
 
-    estimated_icu_forecast_samples[,1:(forecast+1)] <- estimated_icu_forecast_samples[,1:(forecast+1)] + model_output$out$icu_prediction[,loc_N_l:(loc_N_l+forecast),i]
+    estimated_icu_forecast_samples[,1:(forecast+1)] <- estimated_icu_forecast_samples[,1:(forecast+1)] + model_output$out$cumm_icu_prediction[,loc_N_l:(loc_N_l+forecast),i]
 
     # (UNUSED) Getting cases and deaths from the data available for the model's input
     #agg_reported_cases[agg_idx] <-agg_reported_cases[orig_agg_idx] + model_output$stan_list$reported_cases[[i]]
