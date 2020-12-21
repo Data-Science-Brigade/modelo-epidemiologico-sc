@@ -99,7 +99,7 @@ transformed parameters {
           icu_prediction[i, m] = icu_noise[m] * dot_product(sub_col(prediction, 1, m, i-1), tail(inf2icu_rev[m], i-1));
           icu_rec_prediction[i, m] = ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(icu2r_rev[m], i-1));
           E_deaths[i,m] = ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(icu2d_rev[m], i-1));
-          cumm_icu_prediction[i,m] = cumm_icu_prediction[i-1,m] + icu_prediction[i-1,m] - icu_rec_prediction[i-1,m];
+          cumm_icu_prediction[i,m] = cumm_icu_prediction[i-1,m] + icu_prediction[i,m] - icu_rec_prediction[i,m];
           //E_deaths[i,m] = (
           //  ifr_noise[m] * dot_product(sub_col(icu_prediction, 1, m, i-1), tail(f_rev[m], i-1))
           //  +
