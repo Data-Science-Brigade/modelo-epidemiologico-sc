@@ -86,7 +86,14 @@ make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, 
 
   x_breaks <- seq(x_min_date, x_max_date, by="week")
 
-  if(length(x_breaks) > 11){
+  if(length(x_breaks) > 17){
+    for(d in c(0,7,14,21)){
+      x_breaks <- seq(x_min_date + days(d), x_max_date, by="4 weeks")
+      if(x_breaks[length(x_breaks)] == x_max_date){
+        break
+      }
+    }
+  }else if(length(x_breaks) > 11){
     x_breaks <- seq(x_min_date, x_max_date, by="2 weeks")
     if(x_breaks[length(x_breaks)] != x_max_date){
       x_breaks <- seq(x_min_date + days(7), x_max_date, by="2 weeks")
@@ -166,7 +173,7 @@ plot_graph_A <- function(location_name, x_breaks, dfs){
                                  (data_cases_95 %>% slice(n()))$cases_max))
   final_values$y <- round(final_values$y)
 
-  max_y_break <- max(data_cases$cases_max)
+  max_y_break <- max(c(max(data_cases$cases_max),round(max(dfs$data_location$reported_cases))))
   max_y_break <- round_y_breaks(max_y_break)
 
   original_y_breaks <- seq(0, max_y_break, max_y_break/4)
