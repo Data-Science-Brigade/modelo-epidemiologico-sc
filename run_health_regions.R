@@ -30,8 +30,8 @@ opt <- parse_args(opt_parser);
 
 model_output <- run_model_with_opt(opt,default_locations)
 
-make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name)
+make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name, save_path = opt$save_path)
 
-make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name)
+make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name, save_path = opt$save_path)
 
 print("Done")

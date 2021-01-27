@@ -36,42 +36,52 @@ plot_final_Rt <- function(model_output, auto_save=TRUE, save_path="./"){
   g
 }
 
+# GET DFS
+
+get_dfs <- function(location_names, model_output, aggregate_name=NULL) {
+  if(is.null(aggregate_name) && length(location_names)==1) {
+    aggregate_name <- location_names[[1]]
+  } else if(is.null(aggregate_name) && length(location_names)>1) {
+    stop("You must either pass an aggregate name or pass a single location")
+  }
+  dfs <- if(length(location_names)>1){
+    get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
+  } else {
+    get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
+  }
+  dfs
+}
+
 #### 3-PANEL ####
 
 make_all_three_panel_plot <- function(model_output,aggregate_name=NULL, save_path="./"){
   available_locations <- model_output$stan_list$available_locations
 
   for(location_name in available_locations){
-    make_three_panel_plot(location_name, model_output, auto_save=TRUE, save_path=save_path)
+    make_three_panel_plot(location_name,
+                          get_dfs(location_name, model_output),
+                          model_output$reference_date_str,
+                          auto_save=TRUE, save_path=save_path,
+                          filename_suffix=model_output$filename_suffix)
   }
   if(!is.null(aggregate_name)){
-    make_three_panel_plot(available_locations, model_output, auto_save=TRUE, aggregate_name = aggregate_name, save_path=save_path)
+    make_three_panel_plot(aggregate_name,
+                          get_dfs(available_locations, model_output, aggregate_name),
+                          model_output$reference_date_str,
+                          auto_save=TRUE,
+                          save_path=save_path,
+                          filename_suffix=model_output$filename_suffix)
   }
 }
 
-
-make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, min_x_break=NULL, aggregate_name=NULL, save_path="./"){
+make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_save=TRUE, min_x_break=NULL, save_path="./", filename_suffix=""){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggplot2)
   require(scales)
   require(lubridate)
 
-  if(is.null(aggregate_name) && length(location_names)==1) {
-    aggregate_name <- location_names[[1]]
-  } else if(is.null(aggregate_name) && length(location_names)>1) {
-    stop("You must either pass an aggregate name or pass a single location")
-  }
-
   cat(sprintf("\n> Making 3-plots panel for %s", aggregate_name))
-
-  reference_date_str <- model_output$reference_date_str
-  dfs <- if(length(location_names)>1){
-    get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
-  } else {
-    get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
-  }
-
 
   #### CONFIGURE X BREAKS ####
   x_min_date <- if(max(dfs$data_location$reported_cases_c)>=50) {
@@ -110,7 +120,7 @@ make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, 
   plot_A <- plot_graph_A(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
-    plot_A_filename <- sprintf("%sfigures/%s/GRAFICO_A_%s_%s.png", save_path, reference_date_str, aggregate_name, model_output$filename_suffix)
+    plot_A_filename <- sprintf("%sfigures/%s/GRAFICO_A_%s_%s.png", save_path, reference_date_str, aggregate_name, filename_suffix)
     cat(sprintf("\n   Saving %s", plot_A_filename))
     ggsave(file=plot_A_filename, plot_A, width = 6, height=4, type="cairo")
   }
@@ -118,15 +128,15 @@ make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, 
   plot_B <- plot_graph_B(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
-    plot_B_filename <- sprintf("%sfigures/%s/GRAFICO_B_%s_%s.png", save_path, reference_date_str, aggregate_name, model_output$filename_suffix)
+    plot_B_filename <- sprintf("%sfigures/%s/GRAFICO_B_%s_%s.png", save_path, reference_date_str, aggregate_name, filename_suffix)
     cat(sprintf("\n   Saving %s", plot_B_filename))
     ggsave(file=plot_B_filename, plot_B, width = 6, height=4, type="cairo")
   }
 
-  plot_C <- plot_graph_C(aggregate_name, model_output, x_breaks, dfs)
+  plot_C <- plot_graph_C(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
-    plot_C_filename <- sprintf("%sfigures/%s/GRAFICO_C_%s_%s.png", save_path, reference_date_str, aggregate_name, model_output$filename_suffix)
+    plot_C_filename <- sprintf("%sfigures/%s/GRAFICO_C_%s_%s.png", save_path, reference_date_str, aggregate_name, filename_suffix)
     cat(sprintf("\n   Saving %s", plot_C_filename))
     ggsave(file=plot_C_filename, plot_C, width = 9, height=4, type="cairo")
   }
@@ -134,7 +144,7 @@ make_three_panel_plot <- function(location_names, model_output, auto_save=TRUE, 
   p <- cowplot::plot_grid(plot_A, plot_B, plot_C, ncol = 3, rel_widths = c(1.5, 1, 2))
 
 	if(auto_save){
-		plot_filename <- sprintf("%sfigures/%s/3_PANEL_%s_%s.png", save_path, reference_date_str, aggregate_name, model_output$filename_suffix)
+		plot_filename <- sprintf("%sfigures/%s/3_PANEL_%s_%s.png", save_path, reference_date_str, aggregate_name, filename_suffix)
 		cat(sprintf("\n   Saving %s", plot_filename))
 		cowplot::save_plot(plot_filename, p, base_width=14)
 	}
@@ -269,7 +279,7 @@ plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=FALSE){
   plot_B
 }
 
-plot_graph_C <- function(location_name, model_output, x_breaks, dfs){
+plot_graph_C <- function(location_name, x_breaks, dfs){
   require(tidyverse)
   require(ggplot2)
   require(scales)
@@ -293,28 +303,6 @@ plot_graph_C <- function(location_name, model_output, x_breaks, dfs){
   levels(data_rt$key) <- c("ninetyfive", "fifth")
 
   max_rt <- ceiling(max(data_rt$rt_max))
-  ##### CHANGE POINTS ####
-  n_features <- model_output$stan_list$interventions_wide$AREA %>% n_distinct()
-  if(n_features <= 6){
-
-    changepoints_df <-
-      model_output$stan_list$interventions_wide %>% group_by(AREA) %>%
-      mutate(lag_combination = lag(ADERENCIA,  default = 1, order_by = AREA),
-             changes=cumsum(ADERENCIA != lag_combination),
-             has_change=changes > lag(changes, default=0, order_by=AREA)) %>%
-      filter(row_number() == 1 | has_change) %>% select(-c(lag_combination, changes, has_change))
-    changepoints_df$x <- rep(NA, nrow(changepoints_df))
-    unique_dates <- unique(changepoints_df$DATA)
-
-    for (k in 1:length(unique_dates)){
-      idxs <- which(changepoints_df$DATA == unique_dates[k])
-      max_val <- max(data_rt$rt_max) + 0.3
-      for (j in idxs){
-        changepoints_df$x[j] <- max_val
-        max_val <- max_val - 0.3
-      }
-    }
-  }
 
   original_y_breaks <- seq(1, ceiling(max_rt))
 
@@ -370,24 +358,6 @@ plot_graph_C <- function(location_name, model_output, x_breaks, dfs){
       legend.spacing=unit(0, "points")
     )
 
-  plot_C <- if(n_features <= 6){
-    plot_C +
-      geom_segment(data = changepoints_df,
-                   aes(x = DATA, y = 0, xend = DATA, yend=max(x)),
-                   linetype = "dashed", colour = "grey", alpha = 0.75, size=0.3) +
-        geom_point(data = changepoints_df, aes(x = DATA,
-                                               y = x,
-                                               group = AREA,
-                                               shape = AREA,
-                                               col = AREA), size = 2) +
-        scale_shape_manual(name = "Restrições e Liberações",
-                           labels = unique(changepoints_df$AREA),
-                           values = c(21, 22, 23, 24, 25, 12)) +
-        scale_colour_discrete(name = "Restrições e Liberações", labels = unique(changepoints_df$AREA))
-  }else{
-    plot_C
-  }
-
   plot_C
 
 }
@@ -413,8 +383,27 @@ make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_bre
     } else {
       week_max_y_breaks
     }
-    make_forecast_plot(location_name, model_output, auto_save=TRUE, min_y_break=min_y_break, max_y_break=max_y_break, week_max_y_break=week_max_y_break ,save_path=save_path)
+    dfs <- get_dfs(location_name, model_output)
+    make_forecast_plot(location_name,
+                       dfs,
+                       model_output$reference_date_str,
+                       is_weekly=FALSE,
+                       min_y_break=min_y_break,
+                       max_y_break=max_y_break,
+                       auto_save=TRUE,
+                       save_path=save_path,
+                       filename_suffix=model_output$filename_suffix)
+    make_forecast_plot(location_name,
+                       dfs,
+                       model_output$reference_date_str,
+                       is_weekly=TRUE,
+                       min_y_break=min_y_break,
+                       max_y_break=week_max_y_break,
+                       auto_save=TRUE,
+                       save_path=save_path,
+                       filename_suffix=model_output$filename_suffix)
   }
+
   if(!is.null(aggregate_name)){
     min_y_break <- if(!is.null(min_y_breaks) && length(min_y_breaks)>1){
       min_y_breaks[[aggregate_name]]
@@ -431,11 +420,30 @@ make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_bre
     } else {
       week_max_y_breaks
     }
-    make_forecast_plot(available_locations, model_output, auto_save=TRUE, min_y_break=min_y_break, max_y_break=max_y_break, week_max_y_break=week_max_y_break, aggregate_name = aggregate_name, save_path=save_path)
+
+    dfs <- get_dfs(available_locations, model_output, aggregate_name)
+    make_forecast_plot(location_name,
+                       dfs,
+                       model_output$reference_date_str,
+                       is_weekly=FALSE,
+                       min_y_break=min_y_break,
+                       max_y_break=max_y_break,
+                       auto_save=TRUE,
+                       save_path=save_path,
+                       filename_suffix=model_output$filename_suffix)
+    make_forecast_plot(location_name,
+                       dfs,
+                       model_output$reference_date_str,
+                       is_weekly=TRUE,
+                       min_y_break=min_y_break,
+                       max_y_break=week_max_y_break,
+                       auto_save=TRUE,
+                       save_path=save_path,
+                       filename_suffix=model_output$filename_suffix)
   }
 }
 
-make_forecast_plot <- function(location_names, model_output, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, week_max_y_break=NULL, aggregate_name=NULL, save_path="./"){
+make_forecast_plot <- function(aggregate_name, dfs, reference_date_str, is_weekly, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, save_path="./", filename_suffix=""){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggrepel)
@@ -443,39 +451,35 @@ make_forecast_plot <- function(location_names, model_output, auto_save=TRUE, min
   require(scales)
   require(lubridate)
 
-  if(missing(aggregate_name) && length(location_names)==1) {
-    aggregate_name <- location_names[[1]]
-  } else if(is.null(aggregate_name) && length(location_names)>1) {
-    stop("You must either pass an aggregate name or pass a single location")
-  }
-
   cat(sprintf("\n> Making forecast plots for %s", aggregate_name))
-
-  reference_date_str <- model_output$reference_date_str
-  dfs <- get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
 
   df_rts <- dfs$data_location %>% filter(row_number() == n()) %>% select(rt_min, rt, rt_max)
 
+  reference_date <- ymd(reference_date_str)
+
   cum_deaths <- get_cumulative_df(data_location=dfs$data_location,
                                   dfs$data_location_forecast,
-                                  reference_date = ymd(reference_date_str))
+                                  reference_date = reference_date)
 
-  for(next_week in c(TRUE, FALSE)){
-    p <- make_cumulative_plot(aggregate_name, cum_deaths, df_rts, ymd(reference_date_str), next_week=next_week,
-                              min_y_break=min_y_break,
-                              max_y_break=if(next_week && !is.null(week_max_y_break)){week_max_y_break}else{max_y_break})
-    p <- p + ggtitle(paste0("(", aggregate_name, ") Cenarios do Modelo do dia ", strftime(ymd(reference_date_str), "%d/%m/%Y")))
+  p <- make_cumulative_plot(aggregate_name,
+                            cum_deaths,
+                            df_rts,
+                            reference_date,
+                            next_week=is_weekly,
+                            min_y_break=min_y_break,
+                            max_y_break=max_y_break)
 
-    if(auto_save){
-      plot_filename <- sprintf("%sfigures/%s/FORECAST_%s_%s_%s.png",
-                               save_path,
-                               reference_date_str,
-                               aggregate_name,
-                               ifelse(next_week, "_week", ""),
-                               model_output$filename_suffix, ".png")
-      cat(sprintf("\n   Saving %s", plot_filename))
-      ggsave(file= plot_filename, p, width = 11.08, height=4.8, type="cairo")
-    }
+  p <- p + ggtitle(paste0("(", aggregate_name, ") Cenarios do Modelo do dia ", strftime(ymd(reference_date_str), "%d/%m/%Y")))
+
+  if(auto_save){
+    plot_filename <- sprintf("%sfigures/%s/FORECAST_%s_%s_%s.png",
+                             save_path,
+                             reference_date_str,
+                             aggregate_name,
+                             ifelse(is_weekly, "_week", ""),
+                             filename_suffix, ".png")
+    cat(sprintf("\n   Saving %s", plot_filename))
+    ggsave(file= plot_filename, p, width = 11.08, height=4.8, type="cairo")
   }
 
   p
@@ -608,8 +612,6 @@ get_cumulative_df <- function(data_location, data_location_forecast, reference_d
 
 
 ### Recent C plots ###
-
-
 
 make_all_C_plot <- function(model_output, min_x_break=NULL, aggregate_name=NULL, save_path="./"){
   available_locations <- model_output$stan_list$available_locations
