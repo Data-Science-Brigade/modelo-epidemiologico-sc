@@ -702,7 +702,7 @@ plot_state_forecast <- function(model_output, x_min = "2020-05-31", x_max=NULL, 
 
 ### Weekly average followup and heatmap
 
-get_full_df_from_region_dfs <- function(region_dfs) {
+get_full_df_from_region_dfs <- function(region_dfs, k=7) {
   require(tidyverse)
   require(lubridate)
   require(zoo)
@@ -730,9 +730,9 @@ get_full_df_from_region_dfs <- function(region_dfs) {
     mydf <- mydf %>%
       dplyr::arrange(time) %>%
       mutate(
-        deaths_r7 = zoo::rollmean(deaths, k=7, fill=NA, align="right"),
-        deaths_upper_r7 = zoo::rollmean(deaths_upper, k=7, fill=NA, align="right"),
-        deaths_lower_r7 = zoo::rollmean(deaths_lower, k=7, fill=NA, align="right")
+        deaths_ravg = zoo::rollmean(deaths, k=k, fill=NA, align="right"),
+        deaths_upper_ravg = zoo::rollmean(deaths_upper, k=k, fill=NA, align="right"),
+        deaths_lower_ravg = zoo::rollmean(deaths_lower, k=k, fill=NA, align="right")
       )
 
     full_df <- if(is.null(full_df)) {
@@ -781,7 +781,7 @@ plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL) {
   x_points <- x_breaks_and_points$x_points
 
   pp <- ggplot(full_df, aes(x = time,
-                      y=deaths_r7,
+                      y=deaths_ravg,
                       colour = location_name)) +
     geom_line(size=0.5, alpha=0.5) +
     geom_point(data=full_df %>% filter(time %in% x_points), alpha=1, size=0.8) +
@@ -808,18 +808,18 @@ plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL) {
   require(scales)
   require(lubridate)
 
-  full_df <- get_full_df_from_region_dfs(region_dfs)
+  full_df <- get_full_df_from_region_dfs(region_dfs, k=14)
 
   x_breaks_and_points <- get_weekly_average_xbreaks_and_points(full_df, x_breaks)
   x_breaks <- x_breaks_and_points$x_breaks
   x_points <- x_breaks_and_points$x_points
 
-  midpoint <- (max(full_df$deaths_r7, na.rm=TRUE) - min(full_df$deaths_r7, na.rm=TRUE))/2 + min(full_df$deaths_r7, na.rm=TRUE)
+  midpoint <- (max(full_df$deaths_ravg, na.rm=TRUE) - min(full_df$deaths_ravg, na.rm=TRUE))/2 + min(full_df$deaths_ravg, na.rm=TRUE)
 
-  pp <- ggplot(full_df,
+  pp <- ggplot(full_df %>% filter(time %in% x_breaks),
                aes(time, location_name)) +
-    geom_tile(aes(fill = deaths_r7), colour = "white", na.rm = TRUE) +
-    #geom_text(aes(label=round(deaths_r7)), na.rm=TRUE) + # This pollutes the plot
+    geom_tile(aes(fill = deaths_ravg), colour = "white", na.rm = TRUE) +
+    #geom_text(aes(label=round(deaths_ravg)), na.rm=TRUE) + # This pollutes the plot
     scale_fill_gradient2(low="#57bb8a", mid="#ffd666", high="#e67c73", midpoint=midpoint) +
     theme_dsb_light() +
     theme() +
