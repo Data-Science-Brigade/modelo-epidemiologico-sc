@@ -1,0 +1,8 @@
+# Data
+IFR.csv
+interventions.xls
+icu.csv
+serial_interval.csv
+*icu_*.csv
+*rep_*.csv
+pop_and_regions.csv

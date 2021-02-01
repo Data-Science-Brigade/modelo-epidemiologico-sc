@@ -673,3 +673,28 @@ round_y_breaks <- function(max_y_break, n_breaks=4, min_y_break=0){
   max_y_break
 }
 
+save_data_for_dashboard <- function(model_output, save_path="./", aggregate_name=NULL) {
+  available_locations <- model_output$stan_list$available_locations
+
+  dir.create(paste0(save_path, "dashboard_results/", model_output$reference_date_str), recursive = TRUE, showWarnings = FALSE)
+
+  for(location_name in available_locations){
+    locdir <- paste0(save_path, "dashboard_results/", model_output$reference_date_str, "/", location_name)
+    dir.create(locdir, recursive = TRUE, showWarnings = FALSE)
+    dfs <- get_merged_forecast_dfs(location_name, model_output)
+    write.csv(dfs$data_location, paste0(locdir, "/data_location.csv"))
+    write.csv(dfs$data_location_forecast, paste0(locdir, "/data_location_forecast.csv"))
+    write_lines(location_name, paste0(locdir, "/location_names.txt"))
+    write_file(location_name, paste0(locdir, "/aggregate_name.txt"))
+  }
+  if(!is.null(aggregate_name)){
+    locdir <- paste0(save_path, "dashboard_results/", model_output$reference_date_str, "/", location_name)
+    dir.create(locdir, recursive = TRUE, showWarnings = FALSE)
+    dfs <- get_merged_forecast_dfs(available_locations, model_output, aggregate_name = aggregate_name)
+    write.csv(dfs$data_location, paste0(locdir, "/data_location.csv"))
+    write.csv(dfs$data_location_forecast, paste0(locdir, "/data_location_forecast.csv"))
+    write_lines(available_locations, paste0(locdir, "/location_names.txt"))
+    write_file(aggregate_name, paste0(locdir, "/aggregate_name.txt"))
+  }
+}
+
