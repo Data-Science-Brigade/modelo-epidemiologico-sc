@@ -219,7 +219,7 @@ make_C_plot <- function(location_names, model_output, auto_save=TRUE, min_x_brea
     }
   }
 
-  plot_C <- plot_graph_C(aggregate_name, model_output, x_breaks, dfs)
+  plot_C <- plot_graph_C(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
     plot_C_filename <- sprintf("%sfigures/%s/GRAFICO_RECENTE_C_%s_%s.png", save_path, reference_date_str, aggregate_name, model_output$filename_suffix)

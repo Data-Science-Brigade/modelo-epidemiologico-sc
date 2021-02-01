@@ -1,5 +1,22 @@
-
-
+dsb_color_pallete <- c(
+  "#ED297C",
+  "#008FD5",
+  "#FF2700",
+  "#FFAB40",
+  "#810F7C",
+  "#619656",
+  "#11C8ED",
+  "#ED5434",
+  "#11ED98",
+  "#C61EF7",
+  "#78342A",
+  "#FC5900",
+  "#AB5F00",
+  "#414D91",
+  "#032738",
+  "#193AF7",
+  "#243820"
+)
 
 theme_dsb_base <- function(default_color='#1b1b1b', default_text_color='#fcfcfc', grid_color='#595959',
                           base_size=10, margin=24){

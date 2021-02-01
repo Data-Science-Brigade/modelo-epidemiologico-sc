@@ -1,5 +1,6 @@
 library(optparse)
 library(epiCata)
+library(epiCataPlot)
 library(lubridate)
 
 default_locations <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
@@ -33,5 +34,7 @@ model_output <- run_model_with_opt(opt,default_locations)
 make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name, save_path = opt$save_path)
 
 make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name, save_path = opt$save_path)
+
+save_data_for_dashboard(model_output, save_path = "~/epiCataDashboard/", aggregate_name = opt$aggregate_name)
 
 print("Done")

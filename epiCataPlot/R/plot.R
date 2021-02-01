@@ -300,9 +300,8 @@ plot_graph_C <- function(location_name, x_breaks, dfs){
 
   original_y_breaks <- seq(1, ceiling(max_rt))
 
-  priority_rt <- round(data_rt %>%
-                         filter(time == max(time)) %>%
-                         summarize(rt=c(min(rt_min), max(rt_max), mean(c(rt_min, rt_max)))), 2)$rt
+  priority_rt <- data_rt %>% filter(time == max(time))
+  priority_rt <- round(c(min(priority_rt$rt_min), max(priority_rt$rt_max), mean(c(priority_rt$rt_min, priority_rt$rt_max))), 2)
 
   # Did this location had a higher R0?
   R0_df <- bind_rows(data_rt_50 %>% filter(time == min(time), rt_min >= 2))
@@ -604,78 +603,6 @@ get_cumulative_df <- function(data_location, data_location_forecast, reference_d
   cumulative_deaths
 }
 
-
-### Recent C plots ###
-
-make_all_C_plot <- function(model_output, min_x_break=NULL, aggregate_name=NULL, save_path="./"){
-  available_locations <- model_output$stan_list$available_locations
-
-  for(location_name in available_locations){
-    make_C_plot(location_name, model_output, min_x_break=min_x_break, auto_save=TRUE, save_path=save_path)
-  }
-  if(!is.null(aggregate_name)){
-    make_C_plot(available_locations, model_output, min_x_break=min_x_break, auto_save=TRUE, aggregate_name = aggregate_name, save_path=save_path)
-  }
-}
-
-make_C_plot <- function(location_names, model_output, auto_save=TRUE, min_x_break=NULL, aggregate_name=NULL, save_path="./"){
-  Sys.setlocale("LC_ALL","pt_BR.utf8")
-  require(tidyverse)
-  require(ggplot2)
-  require(scales)
-  require(lubridate)
-
-  if(is.null(aggregate_name) && length(location_names)==1) {
-    aggregate_name <- location_names[[1]]
-  } else if(is.null(aggregate_name) && length(location_names)>1) {
-    stop("You must either pass an aggregate name or pass a single location")
-  }
-
-  cat(sprintf("\n> Making 3-plots panel for %s", aggregate_name))
-
-  reference_date_str <- model_output$reference_date_str
-  dfs <- if(length(location_names)>1){
-    get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
-  } else {
-    get_merged_forecast_dfs(location_names, model_output, aggregate_name=aggregate_name)
-  }
-
-  #### CONFIGURE X BREAKS ####
-  if(is.null(min_x_break)){
-    x_min_date <- if(max(dfs$data_location$reported_cases_c)>=50) {
-      min(filter(dfs$data_location, predicted_cases_c>0)$time) - 7
-    } else {
-      min(dfs$data_location$time)
-    }
-    x_max_date <- max(dfs$data_location$time)
-
-    rest <- as.integer(x_max_date - x_min_date) %% 7
-    x_min_date <- x_min_date - days(7 - rest)
-  } else {
-    x_max_date <- max(dfs$data_location$time)
-    x_min_date <- min_x_break
-  }
-
-  x_breaks <- seq(x_min_date, x_max_date, by="week")
-
-  if(length(x_breaks) > 11){
-    x_breaks <- seq(x_min_date, x_max_date, by="2 weeks")
-    if(x_breaks[length(x_breaks)] != x_max_date){
-      x_breaks <- seq(x_min_date + days(7), x_max_date, by="2 weeks")
-    }
-  }
-
-  plot_C <- plot_graph_C(aggregate_name, model_output, x_breaks, dfs)
-
-  if(auto_save){
-    plot_C_filename <- sprintf("%sfigures/%s/GRAFICO_RECENTE_C_%s_%s.png", save_path, reference_date_str, aggregate_name, model_output$filename_suffix)
-    cat(sprintf("\n   Saving %s", plot_C_filename))
-    ggsave(file=plot_C_filename, plot_C, width = 9, height=4, type="cairo")
-  }
-
-  plot_C
-}
-
 plot_state_forecast <- function(model_output, x_min = "2020-05-31", x_max=NULL, y_breaks=NULL) {
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   library(epiCata)
@@ -770,5 +697,134 @@ plot_state_forecast <- function(model_output, x_min = "2020-05-31", x_max=NULL, 
                            model_output$filename_suffix, ".png")
   cat(sprintf("\n   Saving %s", plot_filename))
   ggsave(file= plot_filename, pp, width = 11.08, height=4.8, type="cairo")
+  pp
+}
+
+### Weekly average followup and heatmap
+
+get_full_df_from_region_dfs <- function(region_dfs) {
+  require(tidyverse)
+  require(lubridate)
+  require(zoo)
+  full_df <- NULL
+  for(dfs in region_dfs) {
+    mydfl <- dfs$data_location %>%
+      select(time, location_name, deaths) %>%
+      mutate(deaths_upper = deaths,
+             deaths_lower = deaths)
+    mydfr <- dfs$data_location_forecast %>%
+      select(time, location_name, estimated_deaths_forecast, death_max_forecast, death_min_forecast) %>%
+      rename(deaths = estimated_deaths_forecast,
+             deaths_upper = death_max_forecast,
+             deaths_lower = death_min_forecast)
+    mydfl$time <- ymd(mydfl$time)
+    mydfr$time <- ymd(mydfr$time)
+    last_reported_date <- max(mydfl$time)
+    if(last_reported_date==min(mydfr$time)){
+      mydfr <- mydfr %>%
+        filter(time>last_reported_date)
+    }
+    mydf <- rbind(mydfl, mydfr)
+    mydf$time <- ymd(mydf$time)
+
+    mydf <- mydf %>%
+      dplyr::arrange(time) %>%
+      mutate(
+        deaths_r7 = zoo::rollmean(deaths, k=7, fill=NA, align="right"),
+        deaths_upper_r7 = zoo::rollmean(deaths_upper, k=7, fill=NA, align="right"),
+        deaths_lower_r7 = zoo::rollmean(deaths_lower, k=7, fill=NA, align="right")
+      )
+
+    full_df <- if(is.null(full_df)) {
+      mydf
+    } else {
+      rbind(full_df, mydf)
+    }
+  }
+  full_df
+}
+
+get_weekly_average_xbreaks_and_points <- function(full_df, x_breaks=NULL) {
+
+  if(is.null(x_breaks)) {
+    x_min_date <- if(max(full_df$deaths)>=1) {
+      min(filter(full_df, deaths>0)$time) - 7
+    } else {
+      min(full_df$time)
+    }
+    x_max_date <- max(full_df$time)
+    rest <- as.integer(x_max_date - x_min_date) %% 7
+    x_min_date <- x_min_date - days(7 - rest)
+    x_breaks <- seq(x_min_date, x_max_date, by="2 weeks")
+  } else {
+    x_min_date <- min(x_breaks)
+    x_max_date <- max(x_breaks)
+  }
+
+  list( x_breaks=x_breaks,
+        x_points= seq(x_min_date, x_max_date, by="week")
+  )
+}
+
+plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL) {
+  Sys.setlocale("LC_ALL","pt_BR.utf8")
+  require(tidyverse)
+  require(ggrepel)
+  require(ggplot2)
+  require(scales)
+  require(lubridate)
+
+  full_df <- get_full_df_from_region_dfs(region_dfs)
+
+  x_breaks_and_points <- get_weekly_average_xbreaks_and_points(full_df, x_breaks)
+  x_breaks <- x_breaks_and_points$x_breaks
+  x_points <- x_breaks_and_points$x_points
+
+  pp <- ggplot(full_df, aes(x = time,
+                      y=deaths_r7,
+                      colour = location_name)) +
+    geom_line(size=0.5, alpha=0.5) +
+    geom_point(data=full_df %>% filter(time %in% x_points), alpha=1, size=0.8) +
+    xlab("") +
+    ylab("Média semanal de óbitos") +
+    scale_x_date(labels = date_format("%e %b"),
+                 breaks=x_breaks,
+                 limits=c(min(x_breaks), max(x_breaks))) +
+    scale_color_manual(values=dsb_color_pallete) +
+    theme_dsb_light() +
+    theme(legend.text=element_text(size=4, hjust=0, margin=margin(b=0,t=0)), # Fixes vertical legend spacing
+          legend.title=element_text(size=8, hjust=0, margin=margin()))
+
+  pp
+}
+
+plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL) {
+  Sys.setlocale("LC_ALL","pt_BR.utf8")
+  require(tidyverse)
+  require(dplyr)
+  require(tidyr)
+  require(ggrepel)
+  require(ggplot2)
+  require(scales)
+  require(lubridate)
+
+  full_df <- get_full_df_from_region_dfs(region_dfs)
+
+  x_breaks_and_points <- get_weekly_average_xbreaks_and_points(full_df, x_breaks)
+  x_breaks <- x_breaks_and_points$x_breaks
+  x_points <- x_breaks_and_points$x_points
+
+  midpoint <- (max(full_df$deaths_r7, na.rm=TRUE) - min(full_df$deaths_r7, na.rm=TRUE))/2 + min(full_df$deaths_r7, na.rm=TRUE)
+
+  pp <- ggplot(full_df,
+               aes(time, location_name)) +
+    geom_tile(aes(fill = deaths_r7), colour = "white", na.rm = TRUE) +
+    #geom_text(aes(label=round(deaths_r7)), na.rm=TRUE) + # This pollutes the plot
+    scale_fill_gradient2(low="#57bb8a", mid="#ffd666", high="#e67c73", midpoint=midpoint) +
+    theme_dsb_light() +
+    theme() +
+    theme(legend.text=element_text(size=4, hjust=0, margin=margin(b=0,t=0)), # Fixes vertical legend spacing
+          legend.title=element_text(size=8, hjust=0, margin=margin()))
+
   pp
 }
