@@ -11,16 +11,17 @@ Para entender como pacotes R funcionam, leia o livro on-line gratuito: http://r-
 
 O jeito mais fácil é [usar o RStudio](https://support.rstudio.com/hc/en-us/articles/200486508-Building-Testing-and-Distributing-Packages). Abra o projeto (pasta `epiCata`) e faça um build do pacote com o atalho `Ctrl + Shift + B`.
 
-Caso queira rodar na linha de comando, abra um terminal do `R` e digite:
+Caso queira rodar na linha de comando, abra um terminal do `R` dentro das pastas `epiCataPlot` e `epiCata` e digite:
 
 ```
     devtools::build()
     devtools::install()
 ```
 
-Assim, o pacote `epiCata` estará disponível:
+Assim, os pacotes `epiCataPlot` e `epiCata` estarão disponíveis:
 
 ```
+    library(epiCataPlot)
     library(epiCata)
 ```
 
