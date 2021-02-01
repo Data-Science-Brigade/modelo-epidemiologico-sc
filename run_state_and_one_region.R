@@ -1,4 +1,5 @@
 library(optparse)
+library(epiCataPlot)
 library(epiCata)
 library(lubridate)
 
