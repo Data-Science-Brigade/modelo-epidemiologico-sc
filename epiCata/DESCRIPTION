@@ -1,7 +1,7 @@
 Package: epiCata
 Type: Package
 Title: Epidemiological Model adjusted to the state of Santa Catarina (Brazil) and its macrorregions
-Version: 0.1.0
+Version: 1.1.0
 Author: Jonathan Cardoso-Silva (Data Science Brigade), Pedro Henrique da Costa Avelar (Data Science Brigade)
 Maintainer: Jonathan Cardoso-Silva (Data Science Brigade) <jon@dsbrigade.com>
 Description: More about what it does (maybe more than one line)
@@ -25,5 +25,5 @@ Imports:
 Depends: 
     R (>= 2.10)
 Remotes:
-  git::https://github.com/Data-Science-Brigade/modelo-epidemiologico-sc/tree/feature/ch9713/pedro-modelo-sc-retomar-a-criação-do-shiny/epiCataPlot
+  git::https://github.com/Data-Science-Brigade/modelo-epidemiologico-sc/tree/master/epiCataPlot
 RoxygenNote: 7.1.0
