@@ -195,7 +195,9 @@ plot_graph_A <- function(location_name, x_breaks, dfs){
     geom_hline(yintercept = final_values$y, linetype="dashed", size=0.06) +
     scale_x_date(name="", labels = date_format("%e %b"), breaks=x_breaks, limits=c(min(x_breaks), max(x_breaks))) +
     scale_y_continuous(name="Numero de infecções diárias",
-                       breaks=y_breaks, limits=c(0, max_y_break),
+                       #breaks=pretty_breaks(),
+                       breaks=c(pretty(original_y_breaks), final_values$y[valid_new_break]),
+                       #breaks=y_breaks, limits=c(0, max_y_break),
                        labels=label_comma(big.mark=".", decimal.mark=",", accuracy=1)) +
     scale_fill_manual(name = "Faixa de erro", labels = c("Vlr. Medio", "Variacao"),
                       values = c(alpha("deepskyblue4", 0.55),
@@ -269,7 +271,6 @@ plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=FALSE){
                                     y=total_deaths + (max(data_deaths$death_max) - total_deaths)/4, size=2.5)
   }
 
-  # scale_y_continuous(breaks=seq(0, 90, 10))
   plot_B
 }
 
@@ -340,7 +341,9 @@ plot_graph_C <- function(location_name, x_breaks, dfs){
     scale_x_date(labels = date_format("%e %b"),
                  breaks=x_breaks,
                  limits=c(min(x_breaks), max(x_breaks))) +
-    scale_y_continuous(breaks=y_breaks, labels=sprintf("%.2f", y_breaks), limits=c(0, max_rt)) +
+    scale_y_continuous(breaks=y_breaks,
+                       #breaks=pretty_breaks(),
+                       labels=sprintf("%.2f", y_breaks), limits=c(0, max_rt)) +
     theme_dsb_light() +
     theme(
       axis.text.y = element_text(face=custom_font_face, size=custom_font_size),
@@ -565,7 +568,8 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
     scale_x_date(labels = date_format("%e %b"),
                  breaks=x_breaks,
                  limits=c(min(cumulative_deaths$time), max(cumulative_deaths$time))) +
-    scale_y_continuous(limits=c(min(y_breaks), max(y_breaks)), breaks=y_breaks) +
+    scale_y_continuous(#limits=c(min(y_breaks), max(y_breaks)), breaks=y_breaks
+                       breaks=pretty_breaks()) +
     theme_dsb_light() +
     theme(panel.grid.major.x = element_line(linetype = "dotted", color = "grey", size=0.4)) +
     scale_color_manual(name="Cenarios", values=color_vals) +
@@ -683,7 +687,8 @@ plot_state_forecast <- function(model_output, x_min = "2020-05-31", x_max=NULL, 
     scale_x_date(labels = date_format("%e %b"),
                  breaks=x_breaks,
                  limits=c(x_min - days(1), x_max)) +
-    scale_y_continuous(limits=c(min(y_breaks), max(y_breaks)), breaks=y_breaks) +
+    scale_y_continuous(#limits=c(min(y_breaks), max(y_breaks)), breaks=y_breaks,
+                       breaks=pretty_breaks()) +
     theme_dsb_light() +
     theme(panel.grid.major.x = element_line(linetype = "dotted", color = "grey", size=0.4),
           legend.text = element_text(margin = margin(l=2.5, t=0)),
@@ -744,7 +749,7 @@ get_full_df_from_region_dfs <- function(region_dfs, k=7) {
   full_df
 }
 
-get_weekly_average_xbreaks_and_points <- function(full_df, x_breaks=NULL) {
+get_weekly_average_xbreaks_and_points <- function(full_df, x_breaks=NULL, x_breaks_by="2 weeks", x_points_by="week") {
 
   if(is.null(x_breaks)) {
     x_min_date <- if(max(full_df$deaths)>=1) {
@@ -755,14 +760,14 @@ get_weekly_average_xbreaks_and_points <- function(full_df, x_breaks=NULL) {
     x_max_date <- max(full_df$time)
     rest <- as.integer(x_max_date - x_min_date) %% 7
     x_min_date <- x_min_date - days(7 - rest)
-    x_breaks <- seq(x_min_date, x_max_date, by="2 weeks")
+    x_breaks <- seq(x_min_date, x_max_date, by=x_breaks_by)
   } else {
     x_min_date <- min(x_breaks)
     x_max_date <- max(x_breaks)
   }
 
   list( x_breaks=x_breaks,
-        x_points= seq(x_min_date, x_max_date, by="week")
+        x_points= seq(x_min_date, x_max_date, by=x_points_by)
   )
 }
 
@@ -783,16 +788,19 @@ plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL) {
   pp <- ggplot(full_df, aes(x = time,
                       y=deaths_ravg,
                       colour = location_name)) +
-    geom_line(size=0.5, alpha=0.5) +
-    geom_point(data=full_df %>% filter(time %in% x_points), alpha=1, size=0.8) +
+    geom_line(size=1.5, alpha=1.0) +
+    geom_point(data=full_df %>% filter(time %in% x_points), alpha=1, size=1.5) +
+    geom_vline(xintercept = min(region_dfs[[1]]$data_location_forecast$time), linetype="dashed", size=0.5) +
     xlab("") +
-    ylab("Média semanal de óbitos") +
+    ylab("Média movel semanal de óbitos") +
     scale_x_date(labels = date_format("%e %b"),
                  breaks=x_breaks,
                  limits=c(min(x_breaks), max(x_breaks))) +
+    scale_y_continuous(breaks=pretty_breaks()) +
     scale_color_manual(values=dsb_color_pallete) +
     theme_dsb_light() +
-    theme(legend.text=element_text(size=4, hjust=0, margin=margin(b=0,t=0)), # Fixes vertical legend spacing
+    theme(legend.text=element_text(size= ifelse(length(unique(full_df$location_name))>8,6,9),
+                                   hjust=0, margin=margin(b=0,t=0)), # Fixes vertical legend spacing
           legend.title=element_text(size=8, hjust=0, margin=margin()))
 
   pp
@@ -810,20 +818,28 @@ plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL) {
 
   full_df <- get_full_df_from_region_dfs(region_dfs, k=14)
 
-  x_breaks_and_points <- get_weekly_average_xbreaks_and_points(full_df, x_breaks)
+  x_breaks_and_points <- get_weekly_average_xbreaks_and_points(full_df, x_breaks, x_breaks_by="month", x_points_by="2 weeks")
   x_breaks <- x_breaks_and_points$x_breaks
   x_points <- x_breaks_and_points$x_points
 
   midpoint <- (max(full_df$deaths_ravg, na.rm=TRUE) - min(full_df$deaths_ravg, na.rm=TRUE))/2 + min(full_df$deaths_ravg, na.rm=TRUE)
 
-  pp <- ggplot(full_df %>% filter(time %in% x_breaks),
+  pp <- ggplot(full_df %>% filter(time %in% x_points),
                aes(time, location_name)) +
     geom_tile(aes(fill = deaths_ravg), colour = "white", na.rm = TRUE) +
-    #geom_text(aes(label=round(deaths_ravg)), na.rm=TRUE) + # This pollutes the plot
+    geom_vline(xintercept = min(region_dfs[[1]]$data_location_forecast$time), linetype="dashed", size=0.5, colour="#333333") +
+    geom_text(aes(label=round(deaths_ravg,1)), na.rm=TRUE) + # This pollutes the plot
     scale_fill_gradient2(low="#57bb8a", mid="#ffd666", high="#e67c73", midpoint=midpoint) +
+    xlab("") +
+    ylab("Local") +
+    scale_x_date(labels = date_format("%e %b"),
+                 breaks=x_breaks,
+                 limits=c(min(x_breaks), max(x_breaks))) +
+    guides(fill=guide_legend(title="Média movel bisemanal de Óbitos")) +
     theme_dsb_light() +
     theme() +
-    theme(legend.text=element_text(size=4, hjust=0, margin=margin(b=0,t=0)), # Fixes vertical legend spacing
+    theme(legend.text=element_text(size= ifelse(length(unique(full_df$location_name))>8,6,9),
+                                   hjust=0, margin=margin(b=0,t=0)), # Fixes vertical legend spacing
           legend.title=element_text(size=8, hjust=0, margin=margin()))
 
   pp
