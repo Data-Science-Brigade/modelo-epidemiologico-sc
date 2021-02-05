@@ -679,6 +679,7 @@ save_data_for_dashboard <- function(model_output, save_path="./", aggregate_name
   dir.create(paste0(save_path, "dashboard_results/", model_output$reference_date_str), recursive = TRUE, showWarnings = FALSE)
 
   for(location_name in available_locations){
+    print(paste0("Saving data for ", location_name))
     locdir <- paste0(save_path, "dashboard_results/", model_output$reference_date_str, "/", location_name)
     dir.create(locdir, recursive = TRUE, showWarnings = FALSE)
     dfs <- get_merged_forecast_dfs(location_name, model_output)
@@ -688,7 +689,8 @@ save_data_for_dashboard <- function(model_output, save_path="./", aggregate_name
     write_file(location_name, paste0(locdir, "/aggregate_name.txt"))
   }
   if(!is.null(aggregate_name)){
-    locdir <- paste0(save_path, "dashboard_results/", model_output$reference_date_str, "/", location_name)
+    print(paste0("Saving data for ", aggregate_name))
+    locdir <- paste0(save_path, "dashboard_results/", model_output$reference_date_str, "/", aggregate_name)
     dir.create(locdir, recursive = TRUE, showWarnings = FALSE)
     dfs <- get_merged_forecast_dfs(available_locations, model_output, aggregate_name = aggregate_name)
     write.csv(dfs$data_location, paste0(locdir, "/data_location.csv"))
