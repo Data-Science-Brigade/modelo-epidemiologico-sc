@@ -792,12 +792,13 @@ plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL) {
     geom_point(data=full_df %>% filter(time %in% x_points), alpha=1, size=1.5) +
     geom_vline(xintercept = min(region_dfs[[1]]$data_location_forecast$time), linetype="dashed", size=0.5) +
     xlab("") +
-    ylab("Média movel semanal de óbitos") +
+    ylab("Média de óbitos por dia em uma janela de uma semana") +
     scale_x_date(labels = date_format("%e %b"),
                  breaks=x_breaks,
                  limits=c(min(x_breaks), max(x_breaks))) +
     scale_y_continuous(breaks=pretty_breaks()) +
     scale_color_manual(values=dsb_color_pallete) +
+    guides(colour=guide_legend(title="Local")) +
     theme_dsb_light() +
     theme(legend.text=element_text(size= ifelse(length(unique(full_df$location_name))>8,6,9),
                                    hjust=0, margin=margin(b=0,t=0)), # Fixes vertical legend spacing
@@ -806,7 +807,7 @@ plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL) {
   pp
 }
 
-plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL) {
+plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL, min_x="2020-03-01") {
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(dplyr)
@@ -815,32 +816,43 @@ plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL) {
   require(ggplot2)
   require(scales)
   require(lubridate)
+  by_num <- 2*7
+  by_shift <- by_num/2
+  by_txt <- "2 weeks"
+  forecast_size <- 4*7
 
-  full_df <- get_full_df_from_region_dfs(region_dfs, k=14)
+  full_df <- get_full_df_from_region_dfs(region_dfs, k=by_num)
 
-  x_breaks_and_points <- get_weekly_average_xbreaks_and_points(full_df, x_breaks, x_breaks_by="month", x_points_by="2 weeks")
-  x_breaks <- x_breaks_and_points$x_breaks
-  x_points <- x_breaks_and_points$x_points
+  reference_date <- min(region_dfs[[1]]$data_location_forecast$time)
+
+  if(is.null(x_breaks)){
+    x_max <- reference_date + forecast_size
+    x_min <- max(min(full_df$time), ymd(min_x))
+    while(as.integer(reference_date - x_min)%%by_num!=0){
+      x_min <- x_min - 1
+    }
+    x_breaks <- seq(x_min, x_max, by=by_txt)
+  }
 
   midpoint <- (max(full_df$deaths_ravg, na.rm=TRUE) - min(full_df$deaths_ravg, na.rm=TRUE))/2 + min(full_df$deaths_ravg, na.rm=TRUE)
 
-  pp <- ggplot(full_df %>% filter(time %in% x_points),
+  pp <- ggplot(full_df %>% filter(time %in% x_breaks),
                aes(time, location_name)) +
     geom_tile(aes(fill = deaths_ravg), colour = "white", na.rm = TRUE) +
-    geom_vline(xintercept = min(region_dfs[[1]]$data_location_forecast$time), linetype="dashed", size=0.5, colour="#333333") +
-    geom_text(aes(label=round(deaths_ravg,1)), na.rm=TRUE) + # This pollutes the plot
+    geom_vline(xintercept = reference_date+by_shift, linetype="dashed", size=0.5) +
+    geom_text(aes(label=round(deaths_ravg,1)), na.rm=TRUE) + # This pollutes the plot if we do it by week
     scale_fill_gradient2(low="#57bb8a", mid="#ffd666", high="#e67c73", midpoint=midpoint) +
     xlab("") +
     ylab("Local") +
-    scale_x_date(labels = date_format("%e %b"),
-                 breaks=x_breaks,
-                 limits=c(min(x_breaks), max(x_breaks))) +
-    guides(fill=guide_legend(title="Média movel bisemanal de Óbitos")) +
+    scale_x_date(label=date_format("%e %b")(x_breaks),
+                 breaks=x_breaks+by_shift,
+                 limits=c(min(x_breaks)+by_shift, max(full_df$time)+7)) +
+    guides(fill=guide_legend(title="Média de óbitos por dia em uma janela de duas semanas")) +
     theme_dsb_light() +
     theme() +
-    theme(legend.text=element_text(size= ifelse(length(unique(full_df$location_name))>8,6,9),
+    theme(legend.text=element_text(size=9,
                                    hjust=0, margin=margin(b=0,t=0)), # Fixes vertical legend spacing
-          legend.title=element_text(size=8, hjust=0, margin=margin()))
+          legend.title=element_text(size=12, hjust=0, margin=margin()))
 
   pp
 }
