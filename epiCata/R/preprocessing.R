@@ -150,9 +150,29 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
     f[i] = (convolution(i+.5) - convolution(i-.5))
   }
 
+  # TODO: Read from file
+  retroactive_cases <- 1.0 + c(0.0000, 0.5578, 0.3782, 0.3007, 0.1753, 0.1309, 0.0948, 0.0671)
+  retroactive_deaths <- 1.0 + c(0.0000, 0.5913, 0.0822, 0.0320, 0.0102, -0.0039, -0.0085, -0.0064)
+
   reported_cases <- as.vector(as.numeric(location_data$casos))
-  deaths <- c(as.vector(as.numeric(location_data$obitos)), rep(-1, location_forecast))
-  cases <- c(as.vector(as.numeric(location_data$casos)), rep(-1, location_forecast))
+  l_rc <- length(retroactive_cases)
+  l_c <- length(reported_cases)
+  reported_cases_retroactive <- reported_cases
+  reported_cases_retroactive[(l_c-l_rc+1):l_c] <- round(tail(reported_cases,l_rc) * rev(retroactive_cases))
+
+  reported_deaths <- as.vector(as.numeric(location_data$obitos))
+  l_rd <- length(retroactive_deaths)
+  l_d <- length(reported_deaths)
+  reported_deaths_retroactive <- reported_deaths
+  reported_deaths_retroactive[(l_d-l_rd+1):l_d] <- round(tail(reported_deaths,l_rc) * rev(retroactive_deaths))
+
+  print(typeof(reported_deaths))
+  print(reported_deaths)
+  print(typeof(reported_deaths_retroactive))
+  print(reported_deaths_retroactive)
+
+  deaths <- c(reported_deaths_retroactive, rep(-1, location_forecast))
+  cases <- c(reported_cases_retroactive, rep(-1, location_forecast))
 
   return(list(epidemic_start=epidemic_start, location_pop=location_pop, N=N, N2=N2, f=f,
               deaths=deaths, cases=cases, x=1:N2,
