@@ -1,4 +1,4 @@
-run_model_with_opt <- function(opt, default_locations){
+run_model_with_opt <- function(opt, default_locations, forecast=30){
   if(!is.null(opt[["reference_date"]])) { opt[["reference_date"]] <- ymd(opt[["reference_date"]]) }
 
   if(any(opt[["allowed_locations"]] != default_locations)) {
@@ -47,7 +47,8 @@ run_model_with_opt <- function(opt, default_locations){
                       IFR,
                       serial_interval,
                       infection_to_onset,
-                      population)
+                      population,
+                      forecast=forecast)
 
   init_model <- NULL
   if(!is.null(opt[["model_init_filename"]])){
@@ -72,10 +73,6 @@ run_model_with_opt <- function(opt, default_locations){
     )
   model_output[["covid_data"]] <- covid_data
   model_output <- save_fitted_model(model_output, opt[["reference_date"]], save_path=opt[["save_path"]])
-
-  make_all_three_panel_plot(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
-
-  make_all_forecast_plots(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
 
   model_output
 }
