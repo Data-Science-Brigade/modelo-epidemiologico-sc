@@ -103,6 +103,8 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   #### FILTER RELEVANT INFORMATION ####
   cat(sprintf("\n\nParsing data for location: %s\n", location_name))
   location_data <- covid_data[covid_data$location_name == location_name, ] %>% arrange(data_ocorrencia)
+  IFR <- sum(location_data$obitos) / sum(location_data$casos)
+  cat(sprintf("\n\nIFR is: %f\n", IFR))
 
   # Epidemic start -- for the model -- starts 30 days before the 10th death happened
   # From Imperial's Technical Report
