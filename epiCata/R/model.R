@@ -17,7 +17,7 @@ run_epidemiological_model <- function(stan_list,
                                       adapt_delta=NULL,
                                       max_treedepth=NULL,
                                       verbose=NULL,
-                                      init_model=NULL
+                                      init_model_fname=NULL
                                       ){
   require(rstan)
   require(lubridate)
@@ -50,7 +50,14 @@ run_epidemiological_model <- function(stan_list,
   rstan::rstan_options(auto_write = TRUE)
   model <- rstan::stan_model(model_filename)
 
-  cat(sprintf("\nRunning in mode %s", mode_str))
+  init_model <- NULL
+  if(!is.null(init_model_fname)){
+    print("Initialising model with:")
+    print(init_model_fname)
+    load(init_model_fname)
+    init_model <- model_output
+    model_output <- NULL
+  }
 
   init <- "random"
   if(!is.null(init_model)){
@@ -82,6 +89,11 @@ run_epidemiological_model <- function(stan_list,
       n_chains <- n_chains+1
     }
   }
+  init_model <- NULL
+  gc()
+
+  cat(sprintf("\nRunning in mode %s", mode_str))
+
   fit <- rstan::sampling(model, data=stan_list$stan_data, iter=iter, warmup=warmup, chains=chains, verbose=verbose,
                control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth), init=init)
 
@@ -108,6 +120,27 @@ save_fitted_model <- function(model_output, reference_date, save_path="./"){
   dir.create(paste0(save_path, "figures/", reference_date_str), recursive = TRUE, showWarnings = FALSE)
 
   model_output$reference_date_str <- reference_date_str
+  model_output$filename_suffix <- filename_suffix
+
+  model_output_filename <- paste0(save_path, 'results/', reference_date_str, '/', filename_suffix, '-stanfit.Rdata')
+  cat(sprintf("\nSaving model objects to %s", model_output_filename))
+  save(model_output, file=model_output_filename)
+
+  return(model_output)
+}
+
+change_model_name <- function(model_output, new_model_name, save_path="./"){
+
+  reference_date_str <- model_output$reference_date_str
+  model_output$model_name <- new_model_name
+
+  # Assign a random number to JOBID
+  JOBID = as.character(abs(round(rnorm(1) * 1000000)))
+  filename_suffix <- paste0(reference_date_str, '_', model_output$model_name,'_', model_output$mode, '_', JOBID)
+
+  dir.create(paste0(save_path, "results/", reference_date_str), recursive = TRUE, showWarnings = FALSE)
+  dir.create(paste0(save_path, "figures/", reference_date_str), recursive = TRUE, showWarnings = FALSE)
+
   model_output$filename_suffix <- filename_suffix
 
   model_output_filename <- paste0(save_path, 'results/', reference_date_str, '/', filename_suffix, '-stanfit.Rdata')
