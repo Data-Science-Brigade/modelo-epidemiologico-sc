@@ -21,7 +21,7 @@ read_covid_data <- function(deaths_filename, population_filename, reference_date
   cities_df$data_ocorrencia <- ymd(cities_df$data_ocorrencia)
 
   if(max(cities_df$data_ocorrencia, na.rm=TRUE) < reference_date-days(1)){
-    stop("Your dataset does not have data up to the reference date!")
+    warning("Your dataset does not have data up to the reference date!")
   }
 
   # Filter any data beyond the reference date
