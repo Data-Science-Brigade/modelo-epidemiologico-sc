@@ -49,15 +49,6 @@ run_model_with_opt <- function(opt, default_locations){
                       infection_to_onset,
                       population)
 
-  init_model <- NULL
-  if(!is.null(opt[["model_init_filename"]])){
-    print("Initialising model with:")
-    print(opt[["model_init_filename"]])
-    load(opt[["model_init_filename"]])
-    init_model <- model_output
-    model_output <- NULL
-  }
-
   model_output <-
     run_epidemiological_model(stan_list,
                               mode = opt[["mode"]],
@@ -68,7 +59,7 @@ run_model_with_opt <- function(opt, default_locations){
                               adapt_delta = opt[["adapt_delta"]],
                               max_treedepth = opt[["max_treedepth"]],
                               verbose = opt[["verbose"]],
-                              init_model = init_model
+                              init_model_fname = opt[["model_init_filename"]]
     )
   model_output[["covid_data"]] <- covid_data
   model_output <- save_fitted_model(model_output, opt[["reference_date"]], save_path=opt[["save_path"]])

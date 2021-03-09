@@ -27,7 +27,7 @@ prepare_stan_data <- function(covid_data,interventions, onset_to_death, IFR,
 
   # A join with all_dates_df will ensure that all dates are represented
   all_dates <- seq(min(covid_data$data_ocorrencia), max(covid_data$data_ocorrencia), by = '1 day')
-  all_dates_df <- expand.grid(unique(interventions$AREA), all_dates)
+  all_dates_df <- expand.grid(sort(unique(interventions$AREA)), all_dates)
   colnames(all_dates_df) <- c("AREA", "DATA")
   common_interventions <- interventions %>%
     right_join(all_dates_df) %>%
@@ -136,6 +136,18 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   }
 
   #### INTERVENTIONS ####
+  interventions <- read_google_mobility_for_cities(location_name)
+  all_dates <- seq(min(covid_data$data_ocorrencia), max(covid_data$data_ocorrencia), by = '1 day')
+  all_dates_df <- expand.grid(sort(unique(interventions$AREA)), all_dates)
+  colnames(all_dates_df) <- c("AREA", "DATA")
+  common_interventions <- interventions %>%
+    right_join(all_dates_df) %>%
+    arrange(AREA, DATA, ADERENCIA) %>%
+    group_by(AREA) %>%
+    fill(ADERENCIA, .direction="down") %>%
+    replace_na(list(ADERENCIA=0)) %>%
+    tidyr::spread(AREA, ADERENCIA)
+
   location_covariates <- common_interventions %>% filter(DATA >= min(location_data$data_ocorrencia))
   location_covariates[N:(N + location_forecast),] <- location_covariates[N,]
   location_covariates <- location_covariates %>% select(-DATA) %>% as.matrix()
