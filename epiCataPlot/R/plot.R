@@ -68,7 +68,7 @@ plot_final_Rt <- function(model_output, auto_save=TRUE, save_path="./"){
   g
 }
 
-make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_save=TRUE, min_x_break=NULL, save_path="./", filename_suffix=""){
+make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_save=TRUE, min_x_break=NULL, save_path="./", filename_suffix="", file_extension="png"){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggplot2)
@@ -114,31 +114,31 @@ make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_
   plot_A <- plot_graph_A(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
-    plot_A_filename <- sprintf("%sfigures/%s/GRAFICO_A_%s_%s.png", save_path, reference_date_str, aggregate_name, filename_suffix)
+    plot_A_filename <- sprintf("%sfigures/%s/GRAFICO_A_%s_%s.%s", save_path, reference_date_str, aggregate_name, filename_suffix, file_extension="png")
     cat(sprintf("\n   Saving %s", plot_A_filename))
-    ggsave(file=plot_A_filename, plot_A, width = 6, height=4, type="cairo")
+    ggsave(file=plot_A_filename, plot_A, width = 6, height=4)#, type="cairo")
   }
 
   plot_B <- plot_graph_B(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
-    plot_B_filename <- sprintf("%sfigures/%s/GRAFICO_B_%s_%s.png", save_path, reference_date_str, aggregate_name, filename_suffix)
+    plot_B_filename <- sprintf("%sfigures/%s/GRAFICO_B_%s_%s.%s", save_path, reference_date_str, aggregate_name, filename_suffix, file_extension="png")
     cat(sprintf("\n   Saving %s", plot_B_filename))
-    ggsave(file=plot_B_filename, plot_B, width = 6, height=4, type="cairo")
+    ggsave(file=plot_B_filename, plot_B, width = 6, height=4)#, type="cairo")
   }
 
   plot_C <- plot_graph_C(aggregate_name, x_breaks, dfs)
 
   if(auto_save){
-    plot_C_filename <- sprintf("%sfigures/%s/GRAFICO_C_%s_%s.png", save_path, reference_date_str, aggregate_name, filename_suffix)
+    plot_C_filename <- sprintf("%sfigures/%s/GRAFICO_C_%s_%s.%s", save_path, reference_date_str, aggregate_name, filename_suffix, file_extension="png")
     cat(sprintf("\n   Saving %s", plot_C_filename))
-    ggsave(file=plot_C_filename, plot_C, width = 9, height=4, type="cairo")
+    ggsave(file=plot_C_filename, plot_C, width = 9, height=4)#, type="cairo")
   }
 
   p <- cowplot::plot_grid(plot_A, plot_B, plot_C, ncol = 3, rel_widths = c(1.5, 1, 2))
 
 	if(auto_save){
-		plot_filename <- sprintf("%sfigures/%s/3_PANEL_%s_%s.png", save_path, reference_date_str, aggregate_name, filename_suffix)
+		plot_filename <- sprintf("%sfigures/%s/3_PANEL_%s_%s.%s", save_path, reference_date_str, aggregate_name, filename_suffix, file_extension="png")
 		cat(sprintf("\n   Saving %s", plot_filename))
 		cowplot::save_plot(plot_filename, p, base_width=14)
 	}
@@ -439,7 +439,7 @@ make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_bre
   }
 }
 
-make_forecast_plot <- function(aggregate_name, dfs, reference_date_str, is_weekly, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, save_path="./", filename_suffix=""){
+make_forecast_plot <- function(aggregate_name, dfs, reference_date_str, is_weekly, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, save_path="./", filename_suffix="", file_extension="png"){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggrepel)
@@ -468,14 +468,14 @@ make_forecast_plot <- function(aggregate_name, dfs, reference_date_str, is_weekl
   p <- p + ggtitle(paste0("(", aggregate_name, ") Cenarios do Modelo do dia ", strftime(ymd(reference_date_str), "%d/%m/%Y")))
 
   if(auto_save){
-    plot_filename <- sprintf("%sfigures/%s/FORECAST_%s_%s_%s.png",
+    plot_filename <- sprintf("%sfigures/%s/FORECAST_%s_%s_%s.%s",
                              save_path,
                              reference_date_str,
                              aggregate_name,
                              ifelse(is_weekly, "_week", ""),
-                             filename_suffix, ".png")
+                             filename_suffix, file_extension="png")
     cat(sprintf("\n   Saving %s", plot_filename))
-    ggsave(file= plot_filename, p, width = 11.08, height=4.8, type="cairo")
+    ggsave(file= plot_filename, p, width = 11.08, height=4.8)#, type="cairo")
   }
 
   p
@@ -607,7 +607,7 @@ get_cumulative_df <- function(data_location, data_location_forecast, reference_d
   cumulative_deaths
 }
 
-plot_state_forecast <- function(model_output, x_min = "2020-05-31", x_max=NULL, y_breaks=NULL) {
+plot_state_forecast <- function(model_output, x_min = "2020-05-31", x_max=NULL, y_breaks=NULL, file_extension="png") {
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   library(epiCata)
   require(tidyverse)
@@ -696,18 +696,18 @@ plot_state_forecast <- function(model_output, x_min = "2020-05-31", x_max=NULL, 
     scale_color_manual(name="Cenarios", values=color_vals) +
     scale_fill_manual(name="Cenarios", values=color_vals)
 
-  plot_filename <- sprintf("figures/%s/FOLLOWUP_%s_%s.png",
+  plot_filename <- sprintf("figures/%s/FOLLOWUP_%s_%s.%s",
                            reference_date_str,
                            location_name,
-                           model_output$filename_suffix, ".png")
+                           model_output$filename_suffix, file_extension="png")
   cat(sprintf("\n   Saving %s", plot_filename))
-  ggsave(file= plot_filename, pp, width = 11.08, height=4.8, type="cairo")
+  ggsave(file= plot_filename, pp, width = 11.08, height=4.8)#, type="cairo")
   pp
 }
 
 ### Weekly average followup and heatmap
 
-get_full_df_from_region_dfs <- function(region_dfs, k=7) {
+get_full_df_from_region_dfs <- function(region_dfs, k=7, include_forecast=TRUE) {
   require(tidyverse)
   require(lubridate)
   require(zoo)
@@ -717,19 +717,23 @@ get_full_df_from_region_dfs <- function(region_dfs, k=7) {
       select(time, location_name, deaths) %>%
       mutate(deaths_upper = deaths,
              deaths_lower = deaths)
-    mydfr <- dfs$data_location_forecast %>%
-      select(time, location_name, estimated_deaths_forecast, death_max_forecast, death_min_forecast) %>%
-      rename(deaths = estimated_deaths_forecast,
-             deaths_upper = death_max_forecast,
-             deaths_lower = death_min_forecast)
     mydfl$time <- ymd(mydfl$time)
-    mydfr$time <- ymd(mydfr$time)
-    last_reported_date <- max(mydfl$time)
-    if(last_reported_date==min(mydfr$time)){
-      mydfr <- mydfr %>%
-        filter(time>last_reported_date)
+    if(include_forecast) {
+      mydfr <- dfs$data_location_forecast %>%
+        select(time, location_name, estimated_deaths_forecast, death_max_forecast, death_min_forecast) %>%
+        rename(deaths = estimated_deaths_forecast,
+               deaths_upper = death_max_forecast,
+               deaths_lower = death_min_forecast)
+      mydfr$time <- ymd(mydfr$time)
+      last_reported_date <- max(mydfl$time)
+      if(last_reported_date==min(mydfr$time)){
+        mydfr <- mydfr %>%
+          filter(time>last_reported_date)
+      }
+      mydf <- rbind(mydfl, mydfr)
+    } else {
+      mydf <- mydfl
     }
-    mydf <- rbind(mydfl, mydfr)
     mydf$time <- ymd(mydf$time)
 
     mydf <- mydf %>%
@@ -771,7 +775,7 @@ get_weekly_average_xbreaks_and_points <- function(full_df, x_breaks=NULL, x_brea
   )
 }
 
-plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL) {
+plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL, include_forecast=TRUE) {
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggrepel)
@@ -779,7 +783,7 @@ plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL) {
   require(scales)
   require(lubridate)
 
-  full_df <- get_full_df_from_region_dfs(region_dfs)
+  full_df <- get_full_df_from_region_dfs(region_dfs, include_forecast=include_forecast)
 
   x_breaks_and_points <- get_weekly_average_xbreaks_and_points(full_df, x_breaks)
   x_breaks <- x_breaks_and_points$x_breaks
@@ -790,7 +794,7 @@ plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL) {
                       colour = location_name)) +
     geom_line(size=1.5, alpha=1.0) +
     geom_point(data=full_df %>% filter(time %in% x_points), alpha=1, size=1.5) +
-    geom_vline(xintercept = min(region_dfs[[1]]$data_location_forecast$time), linetype="dashed", size=0.5) +
+    {if(include_forecast)geom_vline(xintercept = min(region_dfs[[1]]$data_location_forecast$time), linetype="dashed", size=0.5)} +
     xlab("") +
     ylab("Média de óbitos por dia em uma janela de uma semana") +
     scale_x_date(labels = date_format("%e %b"),
@@ -807,7 +811,7 @@ plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL) {
   pp
 }
 
-plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL, min_x="2020-03-01") {
+plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL, min_x="2020-03-01", include_forecast=TRUE) {
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(dplyr)
@@ -819,11 +823,15 @@ plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL, min_x="2020-0
   by_num <- 2*7
   by_shift <- by_num/2
   by_txt <- "2 weeks"
-  forecast_size <- 4*7
+  forecast_size <- 7 * if(include_forecast) {4} else {0}
 
-  full_df <- get_full_df_from_region_dfs(region_dfs, k=by_num)
+  full_df <- get_full_df_from_region_dfs(region_dfs, k=by_num, include_forecast=TRUE)
 
-  reference_date <- min(region_dfs[[1]]$data_location_forecast$time)
+  reference_date <- if(include_forecast){
+    min(region_dfs[[1]]$data_location_forecast$time)
+  } else {
+    max(region_dfs[[1]]$data_location$time)
+  }
 
   if(is.null(x_breaks)){
     x_max <- reference_date + forecast_size
@@ -839,7 +847,7 @@ plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL, min_x="2020-0
   pp <- ggplot(full_df %>% filter(time %in% x_breaks),
                aes(time, location_name)) +
     geom_tile(aes(fill = deaths_ravg), colour = "white", na.rm = TRUE) +
-    geom_vline(xintercept = reference_date+by_shift, linetype="dashed", size=0.5) +
+    {if(include_forecast)geom_vline(xintercept = reference_date+by_shift, linetype="dashed", size=0.5)} +
     geom_text(aes(label=round(deaths_ravg,1)), na.rm=TRUE) + # This pollutes the plot if we do it by week
     scale_fill_gradient2(low="#57bb8a", mid="#ffd666", high="#e67c73", midpoint=midpoint) +
     xlab("") +
