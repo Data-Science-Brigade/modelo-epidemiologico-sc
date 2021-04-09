@@ -17,7 +17,8 @@ run_epidemiological_model <- function(stan_list,
                                       adapt_delta=NULL,
                                       max_treedepth=NULL,
                                       verbose=NULL,
-                                      init_model_fname=NULL
+                                      init_model_fname=NULL,
+                                      is_weekly=FALSE
                                       ){
   require(rstan)
   require(lubridate)
@@ -103,7 +104,7 @@ run_epidemiological_model <- function(stan_list,
     mode_str <- sprintf("%s-%s", nickname, mode_str)
   }
 
-  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=model_name, mode=mode_str)
+  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=paste0(model_name,ifelse(is_weekly,"_weekly","")), mode=mode_str, is_weekly=is_weekly)
 
   model_output
 }
