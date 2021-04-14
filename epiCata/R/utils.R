@@ -593,9 +593,14 @@ round_y_breaks <- function(max_y_break, n_breaks=4, min_y_break=0){
 }
 
 save_data_for_dashboard <- function(model_output, save_path="./", aggregate_name=NULL) {
+  require(readr)
   available_locations <- model_output$stan_list$available_locations
 
   dir.create(paste0(save_path, "dashboard_results/", model_output$reference_date_str), recursive = TRUE, showWarnings = FALSE)
+
+  if(model_output$is_weekly){
+    write_lines("TRUE", paste0(save_path, "dashboard_results/", model_output$reference_date_str, "/is_weekly.txt"))
+  }
 
   for(location_name in available_locations){
     print(paste0("Saving data for ", location_name))

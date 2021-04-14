@@ -9,7 +9,7 @@ NAMED_MODELS <- list(
 
 run_epidemiological_model <- function(stan_list,
                                       nickname=NULL,
-                                      model_name="base-reported",
+                                      model_name="base",
                                       mode=NULL,
                                       iter=NULL,
                                       warmup=NULL,
@@ -57,6 +57,10 @@ run_epidemiological_model <- function(stan_list,
     print(init_model_fname)
     load(init_model_fname)
     init_model <- model_output
+    init_is_weekly <- ifelse(is.null(model_output[["is_weekly"]]),FALSE,model_output$is_weekly)
+    if(is_weekly!=init_is_weekly){
+      error("Model passed as initialisation and model to be ran are on different time scales!")
+    }
     model_output <- NULL
   }
 
