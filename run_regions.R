@@ -22,21 +22,21 @@ opt <- parse_args(opt_parser);
 
 model_output <- run_model_with_opt(opt,default_locations)
 
-make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name)
+make_all_three_panel_plot(model_output, aggregate_name = opt$aggregate_name, save_path = opt$save_path)
 
-mi <- list(SC_ESTADO=NULL, SC_MAC_ALTO_VALE_DO_ITAJAI=NULL, SC_MAC_FOZ_DO_RIO_ITAJAI=NULL, SC_MAC_GRANDE_FLORIANOPOLIS=NULL,
-           SC_MAC_GRANDE_OESTE=NULL, SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE=NULL, SC_MAC_PLANALTO_NORTE_E_NORDESTE=NULL, SC_MAC_SUL=NULL)
-wma <- list(SC_ESTADO=NULL, SC_MAC_ALTO_VALE_DO_ITAJAI=NULL, SC_MAC_FOZ_DO_RIO_ITAJAI=NULL, SC_MAC_GRANDE_FLORIANOPOLIS=NULL,
-            SC_MAC_GRANDE_OESTE=NULL, SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE=NULL, SC_MAC_PLANALTO_NORTE_E_NORDESTE=NULL, SC_MAC_SUL=NULL)
-ma <- list(SC_ESTADO=NULL, SC_MAC_ALTO_VALE_DO_ITAJAI=NULL, SC_MAC_FOZ_DO_RIO_ITAJAI=NULL, SC_MAC_GRANDE_FLORIANOPOLIS=NULL,
-           SC_MAC_GRANDE_OESTE=NULL, SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE=NULL, SC_MAC_PLANALTO_NORTE_E_NORDESTE=NULL, SC_MAC_SUL=NULL)
+mi <- NULL#list(SC_ESTADO=NULL, SC_MAC_ALTO_VALE_DO_ITAJAI=NULL, SC_MAC_FOZ_DO_RIO_ITAJAI=NULL, SC_MAC_GRANDE_FLORIANOPOLIS=NULL,
+           #SC_MAC_GRANDE_OESTE=NULL, SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE=NULL, SC_MAC_PLANALTO_NORTE_E_NORDESTE=NULL, SC_MAC_SUL=NULL)
+wma <- NULL#list(SC_ESTADO=NULL, SC_MAC_ALTO_VALE_DO_ITAJAI=NULL, SC_MAC_FOZ_DO_RIO_ITAJAI=NULL, SC_MAC_GRANDE_FLORIANOPOLIS=NULL,
+            #SC_MAC_GRANDE_OESTE=NULL, SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE=NULL, SC_MAC_PLANALTO_NORTE_E_NORDESTE=NULL, SC_MAC_SUL=NULL)
+ma <- NULL#list(SC_ESTADO=NULL, SC_MAC_ALTO_VALE_DO_ITAJAI=NULL, SC_MAC_FOZ_DO_RIO_ITAJAI=NULL, SC_MAC_GRANDE_FLORIANOPOLIS=NULL,
+           #SC_MAC_GRANDE_OESTE=NULL, SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE=NULL, SC_MAC_PLANALTO_NORTE_E_NORDESTE=NULL, SC_MAC_SUL=NULL)
 
-make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name, min_y_breaks=mi, max_y_breaks=ma, week_max_y_breaks=wma)
+make_all_forecast_plots(model_output, aggregate_name = opt$aggregate_name, min_y_breaks=mi, max_y_breaks=ma, week_max_y_breaks=wma, save_path = opt$save_path)
 
 last_8_weeks = ymd(model_output$reference_date_str) - 8*7 - 1
 
-make_all_C_plot(model_output, aggregate_name = opt$aggregate_name, min_x_break=last_8_weeks)
+make_all_C_plot(model_output, aggregate_name = opt$aggregate_name, min_x_break=last_8_weeks, save_path = opt$save_path)
 
-plot_state_forecast(model_output)
+save_data_for_dashboard(model_output, save_path = "~/epiCataDashboard/", aggregate_name = opt$aggregate_name)
 
 print("Done")
