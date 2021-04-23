@@ -1,6 +1,10 @@
 # Modelo epidemiológico para Santa Catarina (epiCata)
 
-Pacote R baseado no modelo epidemiológico do [Imperial College London](https://github.com/ImperialCollegeLondon/covid19model), adaptado para a realidade do estado de Santa Catarina.
+Pacote R baseado no modelo epidemiológico adaptado para a realidade do estado de Santa Catarina.
+
+Para saber mais detalhes ou caso reutilize esse código, veja e cite nosso artigo (submetido para revista):
+
+> Avelar, P. H. da C., Lamb, L. C., Tsoka, S., & Cardoso-Silva, J. (2021). Weekly Bayesian modelling strategy to predict deaths by COVID-19: a model and case study for the state of Santa Catarina, Brazil. Retrieved from http://arxiv.org/abs/2104.01133
 
 Os relatórios dos nossos estudos com o modelo são divulgados semanalmente pelo Social Good Brasil no link: https://socialgoodbrasil.org.br/modelo-epidemiologico/
 
