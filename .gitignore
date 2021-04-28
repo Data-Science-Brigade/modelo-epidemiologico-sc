@@ -49,9 +49,11 @@ vignettes/*.pdf
 **/*.err
 
 # Data
+**/deaths_unclean.csv
 **/deaths.csv
 **/beds.csv
 **/los_icu.csv
+**/raw_onset_to_death.csv
 **/onset_to_death.csv
 **/deaths_unclean.csv
 **/Global_Mobility_Report.csv
