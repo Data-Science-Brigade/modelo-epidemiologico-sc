@@ -70,7 +70,7 @@ plot_final_Rt <- function(model_output, auto_save=TRUE, save_path="./"){
 
 make_three_panel_plot <- function(aggregate_name, dfs,  reference_date_str,
                                   model_is_weekly = FALSE, auto_save=TRUE,
-                                  min_x_break=NULL, save_path="./",
+                                  min_x_break=NULL, max_breaks=12, save_path="./",
                                   filename_suffix="", file_extension="png"){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
@@ -90,24 +90,19 @@ make_three_panel_plot <- function(aggregate_name, dfs,  reference_date_str,
   }
   x_max_date <- max(dfs$data_location$time)
 
-  rest <- as.integer(x_max_date - x_min_date) %% 7
-  x_min_date <- x_min_date - days(7 - rest)
+  # Could do a non-loop version, but I believe this is more readable
+  weeks <- 0
+  repeat{
+    weeks <- weeks + 1
+    rest <- as.integer(x_max_date - x_min_date) %% (7*weeks)
+    x_min_date_shifted <- x_min_date - days((7*weeks) - rest)
 
-  x_breaks <- seq(x_min_date, x_max_date, by="week")
-
-  if(length(x_breaks) > 17){
-    for(d in c(0,7,14,21)){
-      x_breaks <- seq(x_min_date + days(d), x_max_date, by="4 weeks")
-      if(x_breaks[length(x_breaks)] == x_max_date){
-        break
-      }
-    }
-  }else if(length(x_breaks) > 11){
-    x_breaks <- seq(x_min_date, x_max_date, by="2 weeks")
-    if(x_breaks[length(x_breaks)] != x_max_date){
-      x_breaks <- seq(x_min_date + days(7), x_max_date, by="2 weeks")
+    x_breaks <- seq(x_min_date_shifted, x_max_date, by=ifelse(weeks==1,"week",paste0(weeks, " weeks")))
+    if(length(x_breaks) <= max_breaks){
+      break
     }
   }
+  x_breaks
 
   if(!is.null(min_x_break)){
     valid_x_breaks <- sapply(x_breaks, function(x_break){x_break >= ymd(min_x_break)})

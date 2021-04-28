@@ -11,6 +11,10 @@ run_model_with_opt <- function(opt, default_locations){
     opt[["mode"]] <- "DEBUG"
   }
 
+  if(!file.exists(sprintf("%s/stan-models/%s.stan", get_data_folder(), opt[["model"]]))){
+    error(sprintf("Model %s does not exist in the package! If you added a new model, have you tried re-compiling the package?"), opt[["model"]])
+  }
+
   for(name in names(opt)){
     print(name)
     print(opt[[name]])
@@ -32,7 +36,7 @@ run_model_with_opt <- function(opt, default_locations){
   cat(sprintf("\nReading Data"))
   covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
                                 allowed_locations = opt[["allowed_locations"]])
-  interventions <- read_interventions(opt[["interventions"]], allowed_interventions=NULL, #TODO?
+  interventions <- read_interventions(opt[["interventions"]], allowed_interventions=NULL, #TODO allowed interventions?
                                       google_mobility_filename = opt[["google_mobility"]],
                                       google_mobility_window_size = opt[["google_mobility_window_size"]])
   onset_to_death <- read_onset_to_death(opt[["onset_to_death"]])
@@ -48,11 +52,15 @@ run_model_with_opt <- function(opt, default_locations){
                       serial_interval,
                       infection_to_onset,
                       population,
-                      is_weekly = opt[["is_weekly"]])
+                      is_weekly = opt[["is_weekly"]],
+                      google_mobility_filename = opt[["google_mobility"]],
+                      google_mobility_window_size = opt[["google_mobility_window_size"]],
+                      population_filename = opt[["population"]])
 
   model_output <-
     run_epidemiological_model(stan_list,
                               mode = opt[["mode"]],
+                              model_name = opt[["model"]],
                               nickname = opt[["nickname"]],
                               iter = opt[["iter"]],
                               warmup = opt[["warmup"]],
@@ -73,6 +81,7 @@ make_option_list <- function(default_locations,
                              reference_date=NULL,
                              aggregate_name=NULL,
                              nickname=NULL,
+                             model="base",
                              default_locations_text = "",
                              deaths_csv = "deaths.csv",
                              pop_csv = "pop_and_regions.csv",
@@ -84,7 +93,7 @@ make_option_list <- function(default_locations,
                              serial_interval_csv = "serial_interval.csv",
                              save_path = "../",
                              model_init_filename = NULL,
-                             is_weekly = TRUE
+                             is_weekly = FALSE
                              ) {
   if(is.null(reference_date)) {
     require(lubridate)
@@ -172,6 +181,10 @@ make_option_list <- function(default_locations,
     make_option(c("-z", "--nickname"),
                 type = "character", default = nickname, dest = "nickname",
                 help = sprintf("Model nickname to prepend to mode. If NULL it won't be used. Default: %s", ifelse(is.null(nickname), "NULL", nickname))
+    ),
+    make_option(c("-u", "--model"),
+                type = "character", default = model, dest = "model",
+                help = sprintf("Model to be used. If not available will throw error. Default: %s", ifelse(is.null(model), "NULL", model))
     ),
     make_option(c("-e", "--model_init_filename"),
                 type = "character", default = model_init_filename, dest = "model_init_filename",
@@ -317,7 +330,7 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
             casos=sum(casos),
             obitos=sum(obitos))
         original_data$data_ocorrencia <- ymd(original_data$data_ocorrencia)
-      }#TODO
+      }
 
       min_original_data_date <- min(original_data$data_ocorrencia)
       max_original_data_date <- min(max(original_data$data_ocorrencia), rr$max_date)

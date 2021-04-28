@@ -1,6 +1,6 @@
 prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
                               serial_interval, infection_to_onset, population,
-                              forecast=30, is_weekly=FALSE){
+                              forecast=30, is_weekly=FALSE, google_mobility_filename, google_mobility_window_size, population_filename){
   require(tidyverse)
 
   if(is_weekly){
@@ -97,6 +97,9 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
   # Covariates array
   stan_data$X = array(NA, dim = c(stan_data$M , stan_data$N2 ,stan_data$P ))
 
+  mobility <- read_google_mobility(google_mobility_filename)
+  pop_df <- read_pop_df(population_filename)
+
   i <- 1
   for(location_name in available_locations){
     result_list <- get_stan_data_for_location(location_name=location_name,
@@ -105,7 +108,10 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
                                               ecdf.saved=ecdf.saved,
                                               covid_data=covid_data,
                                               common_interventions=common_interventions,
-                                              is_weekly = is_weekly)
+                                              is_weekly = is_weekly,
+                                              mobility = mobility,
+                                              google_mobility_window_size = google_mobility_window_size,
+                                              pop_df = pop_df)
 
     dates[[location_name]] <- result_list$dates
     reported_cases[[location_name]] <- result_list$reported_cases
@@ -145,7 +151,7 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
               "available_locations"=names(dates)))
 }
 
-get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.saved, covid_data, common_interventions, is_weekly=FALSE){
+get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.saved, covid_data, common_interventions, is_weekly=FALSE, mobility, google_mobility_window_size, pop_df){
 
   #### FILTER RELEVANT INFORMATION ####
   cat(sprintf("\n\nParsing data for location: %s\n", location_name))
@@ -185,7 +191,7 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   }
 
   #### INTERVENTIONS ####
-  interventions <- read_google_mobility_for_cities(location_name)
+  interventions <- process_google_mobility_for_cities(location_name, mobility=mobility, pop_df=pop_df, window_size=google_mobility_window_size)
 
   if(is_weekly) {
     interventions <-
