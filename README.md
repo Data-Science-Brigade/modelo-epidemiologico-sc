@@ -39,7 +39,7 @@ E, para garantir que as versões das bibliotecas instaladas foram as mesmas com 
 * scales==1.1.1
 * ggplot2==3.3.2
 * optparse==1.6.6
-* slider==0.1.0
+* slider==0.2.1
 
 Caso queira, após instalar os pacotes optparse, devtools e usethis, pode-se rodar o script `install_dependencies.R` com o comando do terminal `R -f install_dependencies.R`, que ele todos os pacotes acima serão instalados na versão especificada.
 

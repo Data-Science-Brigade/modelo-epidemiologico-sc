@@ -11,4 +11,4 @@ devtools::install_version("ggrepel", version="0.8.2")
 devtools::install_version("scales", version="1.1.1")
 devtools::install_version("ggplot2", version="3.3.2")
 devtools::install_version("optparse", version="1.6.6")
-devtools::install_version("slider", version="0.1.0") # This might error out and not be installed
+devtools::install_version("slider", version="0.2.1") # This might error out and not be installed, but most of the times can be safely ignored
