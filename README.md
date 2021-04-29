@@ -51,7 +51,7 @@ Caso queira rodar na linha de comando, abra um terminal do `R` dentro das pastas
 
 ```
     devtools::build()
-    devtools::install()
+    devtools::install(upgrade = "never") # O upgrade aqui está "never" para não sobrescrever as versões já instaladas dos pacotes
 ```
 
 Assim, os pacotes `epiCataPlot` e `epiCata` estarão disponíveis:
