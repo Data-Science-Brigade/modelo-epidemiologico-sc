@@ -154,3 +154,13 @@ Por exemplo, para rodar o modelo para a data de 17 de agosto de 2020, com alguns
 ```
 Rscript run_health_regions.R -m DEVELOP -k 7 -i 1200 -w 600 -c 4 -t 8 -r "2020-10-17"
 ```
+
+## Visualizando os resultados
+
+### Acessando as figuras de diagnóstico
+
+Após rodar um dos comandos indicados acima, o modelo será salvo em uma pasta `results/YYYY_MM_DD`, por padrão no caminho `../results/YYYY_MM_DD`, e as figuras numa pasta `figures/YYYY_MM_DD`, por padrão `../figures/YYYY_MM_DD`. Acesse a pasta figures que a maior parte das figuras de diagnóstico e predição do modelo estarão disponíveis nessa pasta.
+
+### Gerando um relatório a partir dos CSVs salvos
+
+Rodar o modelo através dos comandos informados acima irá salvar na pasta `~/epiCataDashboard/dashboard-results/YYYY-MM-DD/` pastas contendo os CSVs que são utilizados para visualizar os gráficos, que normalmente ficam disponíveis na pasta `figures` que o modelo salva. Para gerar esses gráficos a partir dos CSVs, copie o script `plot_report.R` para a pasta `~/epiCataDashboard/dashboard-results/`, altere a primeira linha para indicar a data que você informou no modelo `reference_date <- "YYYY_MM_DD"` (e.g., se o modelo foi rodado com `-r "2020-10-17"`, altere para `reference_date <- "2020_08_17"`) e rode o script `R -f plot_report.R`. Esse script lerá os CSVs da pasta indicada pela variavel informada e gerará os gráficos na mesma pasta onde o script está.
