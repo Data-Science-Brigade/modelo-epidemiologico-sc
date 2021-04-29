@@ -9,7 +9,7 @@ NAMED_MODELS <- list(
 
 run_epidemiological_model <- function(stan_list,
                                       nickname=NULL,
-                                      model_name="base-reported",
+                                      model_name="base",
                                       mode=NULL,
                                       iter=NULL,
                                       warmup=NULL,
@@ -17,7 +17,8 @@ run_epidemiological_model <- function(stan_list,
                                       adapt_delta=NULL,
                                       max_treedepth=NULL,
                                       verbose=NULL,
-                                      init_model_fname=NULL
+                                      init_model_fname=NULL,
+                                      is_weekly=FALSE
                                       ){
   require(rstan)
   require(lubridate)
@@ -56,6 +57,10 @@ run_epidemiological_model <- function(stan_list,
     print(init_model_fname)
     load(init_model_fname)
     init_model <- model_output
+    init_is_weekly <- ifelse(is.null(model_output[["is_weekly"]]),FALSE,model_output$is_weekly)
+    if(is_weekly!=init_is_weekly){
+      error("Model passed as initialisation and model to be ran are on different time scales!")
+    }
     model_output <- NULL
   }
 
@@ -103,7 +108,7 @@ run_epidemiological_model <- function(stan_list,
     mode_str <- sprintf("%s-%s", nickname, mode_str)
   }
 
-  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=model_name, mode=mode_str)
+  model_output <- list(fit=fit, out=out, stan_list=stan_list, model_name=paste0(model_name,ifelse(is_weekly,"_weekly","")), mode=mode_str, is_weekly=is_weekly)
 
   model_output
 }

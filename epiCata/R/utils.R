@@ -11,6 +11,10 @@ run_model_with_opt <- function(opt, default_locations){
     opt[["mode"]] <- "DEBUG"
   }
 
+  if(!file.exists(sprintf("%s/stan-models/%s.stan", get_data_folder(), opt[["model"]]))){
+    error(sprintf("Model %s does not exist in the package! If you added a new model, have you tried re-compiling the package?"), opt[["model"]])
+  }
+
   for(name in names(opt)){
     print(name)
     print(opt[[name]])
@@ -32,7 +36,7 @@ run_model_with_opt <- function(opt, default_locations){
   cat(sprintf("\nReading Data"))
   covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
                                 allowed_locations = opt[["allowed_locations"]])
-  interventions <- read_interventions(opt[["interventions"]], allowed_interventions=NULL, #TODO?
+  interventions <- read_interventions(opt[["interventions"]], allowed_interventions=NULL, #TODO allowed interventions?
                                       google_mobility_filename = opt[["google_mobility"]],
                                       google_mobility_window_size = opt[["google_mobility_window_size"]])
   onset_to_death <- read_onset_to_death(opt[["onset_to_death"]])
@@ -47,11 +51,16 @@ run_model_with_opt <- function(opt, default_locations){
                       IFR,
                       serial_interval,
                       infection_to_onset,
-                      population)
+                      population,
+                      is_weekly = opt[["is_weekly"]],
+                      google_mobility_filename = opt[["google_mobility"]],
+                      google_mobility_window_size = opt[["google_mobility_window_size"]],
+                      population_filename = opt[["population"]])
 
   model_output <-
     run_epidemiological_model(stan_list,
                               mode = opt[["mode"]],
+                              model_name = opt[["model"]],
                               nickname = opt[["nickname"]],
                               iter = opt[["iter"]],
                               warmup = opt[["warmup"]],
@@ -59,14 +68,11 @@ run_model_with_opt <- function(opt, default_locations){
                               adapt_delta = opt[["adapt_delta"]],
                               max_treedepth = opt[["max_treedepth"]],
                               verbose = opt[["verbose"]],
-                              init_model_fname = opt[["model_init_filename"]]
+                              init_model_fname = opt[["model_init_filename"]],
+                              is_weekly = opt[["is_weekly"]]
     )
   model_output[["covid_data"]] <- covid_data
   model_output <- save_fitted_model(model_output, opt[["reference_date"]], save_path=opt[["save_path"]])
-
-  make_all_three_panel_plot(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
-
-  make_all_forecast_plots(model_output, aggregate_name = opt[["aggregate_name"]], save_path=opt[["save_path"]])
 
   model_output
 }
@@ -75,6 +81,7 @@ make_option_list <- function(default_locations,
                              reference_date=NULL,
                              aggregate_name=NULL,
                              nickname=NULL,
+                             model="base",
                              default_locations_text = "",
                              deaths_csv = "deaths.csv",
                              pop_csv = "pop_and_regions.csv",
@@ -85,7 +92,8 @@ make_option_list <- function(default_locations,
                              ifr_csv = "IFR.csv",
                              serial_interval_csv = "serial_interval.csv",
                              save_path = "../",
-                             model_init_filename = NULL
+                             model_init_filename = NULL,
+                             is_weekly = FALSE
                              ) {
   if(is.null(reference_date)) {
     require(lubridate)
@@ -174,11 +182,48 @@ make_option_list <- function(default_locations,
                 type = "character", default = nickname, dest = "nickname",
                 help = sprintf("Model nickname to prepend to mode. If NULL it won't be used. Default: %s", ifelse(is.null(nickname), "NULL", nickname))
     ),
+    make_option(c("-u", "--model"),
+                type = "character", default = model, dest = "model",
+                help = sprintf("Model to be used. If not available will throw error. Default: %s", ifelse(is.null(model), "NULL", model))
+    ),
     make_option(c("-e", "--model_init_filename"),
                 type = "character", default = model_init_filename, dest = "model_init_filename",
                 help = sprintf("Model to init from. If NULL it won't be used. Default: %s", ifelse(is.null(model_init_filename), "NULL", model_init_filename))
+    ),
+    make_option(c("-y", "--is-weekly"),
+                type = "logical", default = is_weekly, dest = "is_weekly",
+                help = sprintf("If the model is to be ran with weekly aggregation. Default: %s", is_weekly)
     )
   )
+}
+
+
+get_ranges_counting_missing_data <- function(model_output, forecast) {
+  rr <- list()
+
+  rr$is_weekly <- length(model_output$is_weekly) && model_output$is_weekly
+
+  rr$forecast <- ifelse(rr$is_weekly, ceiling(forecast / 7), forecast)
+
+  # Get dates
+  rr$min_missing_date <- min(as_date(model_output$covid_data$data_ocorrencia))
+  rr$min_date <- min(reduce(model_output$stan_list$dates, min))
+  rr$max_date <- reduce(model_output$stan_list$dates, max)
+  rr$max_forecast_date <- rr$max_date + rr$forecast
+  if(rr$is_weekly){
+    rr$min_missing_date <- ymd(cut(rr$min_missing_date, "week", start.on.monday = TRUE))
+    rr$min_date <- ymd(cut(rr$min_date, "week", start.on.monday = TRUE))
+    rr$max_date <- ymd(cut(rr$max_date, "week", start.on.monday = TRUE))
+    rr$max_forecast_date <- rr$max_date + rr$forecast * 7
+  }
+
+  # Get data length
+  rr$missingN <- time_length(rr$min_date-rr$min_missing_date, ifelse(rr$is_weekly,"week","day"))
+  rr$fullN <- time_length(rr$max_date-rr$min_missing_date, ifelse(rr$is_weekly,"week","day"))+1
+  rr$N <- time_length(rr$max_date-rr$min_date, ifelse(rr$is_weekly,"week","day"))+1
+  rr$N2 <- time_length(rr$max_forecast_date-rr$min_date, ifelse(rr$is_weekly,"week","day"))+1
+
+  rr
 }
 
 
@@ -188,49 +233,40 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
   if(length(location_names)>1){
     if(is.null(aggregate_name)){ aggregate_name <- "AGG" }
 
-    # Get dates
-    min_missing_date <- min(as_date(model_output$covid_data$data_ocorrencia))
-    min_date <- min(reduce(model_output$stan_list$dates, min))
-    max_date <- reduce(model_output$stan_list$dates, max)
-    max_forecast_date <- max_date + forecast
+    rr <- get_ranges_counting_missing_data(model_output, forecast)
 
-    # Get data length
-    missingN <- as.integer(min_date-min_missing_date)
-    fullN <- as.integer(max_date-min_missing_date)+1
-    N <- as.integer(max_date-min_date)+1
-    N2 <- as.integer(max_forecast_date-min_date)+1
 
     #### COMPUTE PREDICTIONS ####
-    predicted_cases <- array(0, dim=N)
-    predicted_cases_li <- array(0, dim=N)
-    predicted_cases_ui <- array(0, dim=N)
-    predicted_cases_li2 <- array(0, dim=N)
-    predicted_cases_ui2 <- array(0, dim=N)
+    predicted_cases <- array(0, dim=rr$N)
+    predicted_cases_li <- array(0, dim=rr$N)
+    predicted_cases_ui <- array(0, dim=rr$N)
+    predicted_cases_li2 <- array(0, dim=rr$N)
+    predicted_cases_ui2 <- array(0, dim=rr$N)
 
     #### COMPUTE ESTIMATED DEATHS ####
-    estimated_deaths <- array(0, dim=N)
-    estimated_deaths_li <- array(0, dim=N)
-    estimated_deaths_ui <- array(0, dim=N)
-    estimated_deaths_li2 <- array(0, dim=N)
-    estimated_deaths_ui2 <- array(0, dim=N)
+    estimated_deaths <- array(0, dim=rr$N)
+    estimated_deaths_li <- array(0, dim=rr$N)
+    estimated_deaths_ui <- array(0, dim=rr$N)
+    estimated_deaths_li2 <- array(0, dim=rr$N)
+    estimated_deaths_ui2 <- array(0, dim=rr$N)
 
     #### COMPUTE FORECAST OF ESTIMATED DEATHS ####
-    estimated_deaths_forecast <- array(0, dim=forecast+1)
-    estimated_deaths_li_forecast <- array(0, dim=forecast+1)
-    estimated_deaths_ui_forecast <- array(0, dim=forecast+1)
+    estimated_deaths_forecast <- array(0, dim=rr$forecast+1)
+    estimated_deaths_li_forecast <- array(0, dim=rr$forecast+1)
+    estimated_deaths_ui_forecast <- array(0, dim=rr$forecast+1)
 
     #### COMPUTE RT ####
-    rt <- array(0, dim=N)
-    rt_li <- array(0, dim=N)
-    rt_ui <- array(0, dim=N)
-    rt_li2 <- array(0, dim=N)
-    rt_ui2 <- array(0, dim=N)
+    rt <- array(0, dim=rr$N)
+    rt_li <- array(0, dim=rr$N)
+    rt_ui <- array(0, dim=rr$N)
+    rt_li2 <- array(0, dim=rr$N)
+    rt_ui2 <- array(0, dim=rr$N)
     # Weighted average sum
-    rt_n <- array(0, dim=N)
+    rt_n <- array(0, dim=rr$N)
 
     #### Reported cases and deaths ####
-    agg_reported_cases <- array(0, dim=fullN)
-    agg_reported_deaths <- array(0, dim=fullN)
+    agg_reported_cases <- array(0, dim=rr$fullN)
+    agg_reported_deaths <- array(0, dim=rr$fullN)
 
     for(location in location_names) {
       locations_dfs <- get_merged_forecast_dfs_on_model_data(location, model_output, forecast=forecast, aggregate_name=location)
@@ -243,7 +279,7 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
       location_end_date <- max(model_output$stan_list$dates[[i]])
 
       # Index of this location's start date in the aggregate vector
-      loc_N_s <- 1 + as.integer((location_start_date - min_date))
+      loc_N_s <-  1 + time_length(location_start_date - rr$min_date, ifelse(rr$is_weekly, "week", "day"))
       # Length of this location's variable
       loc_N_l <- model_output$stan_list$stan_data$N[i]
 
@@ -284,11 +320,22 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
       # the data preparation phase (`R/preprocessing/get_stan_data_for_location`),
       # there is a filter that can remove some data before feeding it to the model.
       original_data <- model_output$covid_data %>% filter(location_name == location)
+      if(rr$is_weekly){
+        original_data <- original_data %>%
+          group_by(
+            location_name,
+            data_ocorrencia = cut(data_ocorrencia, "week", start.on.monday = TRUE)
+          ) %>%
+          summarise(
+            casos=sum(casos),
+            obitos=sum(obitos))
+        original_data$data_ocorrencia <- ymd(original_data$data_ocorrencia)
+      }
 
       min_original_data_date <- min(original_data$data_ocorrencia)
-      max_original_data_date <- min(max(original_data$data_ocorrencia), max_date)
-      original_data_start <-1 + as.integer((min_original_data_date - min_missing_date))
-      original_data_length <- (max_original_data_date - min_original_data_date)
+      max_original_data_date <- min(max(original_data$data_ocorrencia), rr$max_date)
+      original_data_start <- 1 + time_length(min_original_data_date - rr$min_missing_date, ifelse(rr$is_weekly, "week", "day"))
+      original_data_length <- time_length(max_original_data_date - min_original_data_date, ifelse(rr$is_weekly, "week", "day"))
       # Index of the original data on the aggregate vector
       orig_agg_idx <- original_data_start:(original_data_start+original_data_length)
 
@@ -304,10 +351,10 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
     rt_ui2 <- rt_ui2/rt_n
 
     data_location <- data.frame(
-      "time" = min_date + days(0:(N-1)),
-      "location_name" = rep(aggregate_name, N),
-      "reported_cases" = agg_reported_cases[(missingN+1):(missingN+N)],
-      "deaths" = agg_reported_deaths[(missingN+1):(missingN+N)],
+      "time" = rr$min_date + ifelse(rr$is_weekly,weeks,days)(0:(rr$N-1)),
+      "location_name" = rep(aggregate_name, rr$N),
+      "reported_cases" = agg_reported_cases[(rr$missingN+1):(rr$missingN+rr$N)],
+      "deaths" = agg_reported_deaths[(rr$missingN+1):(rr$missingN+rr$N)],
       "predicted_cases" = predicted_cases,
       "predicted_min" = predicted_cases_li,
       "predicted_max" = predicted_cases_ui,
@@ -324,11 +371,11 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
       "rt_min2" = rt_li2,
       "rt_max2" = rt_ui2)
 
-    missing_original_data <- data.frame("time" = min_missing_date + days(0:(fullN-1)),
-                                        "location_name" = rep(aggregate_name, fullN),
+    missing_original_data <- data.frame("time" = rr$min_missing_date + ifelse(rr$is_weekly,weeks,days)(0:(rr$fullN-1)),
+                                        "location_name" = rep(aggregate_name, rr$fullN),
                                         "reported_cases" = agg_reported_cases,
                                         "deaths" = agg_reported_deaths) %>%
-      mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time<min_date) %>%
+      mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time<rr$min_date) %>%
       select(-c(cum_cases))
 
     data_location <- bind_rows(missing_original_data, data_location) %>% replace(is.na(.), 0)
@@ -347,8 +394,8 @@ get_merged_forecast_dfs <- function(location_names, model_output, forecast=30, a
              death_max_c= cumsum(death_max))
 
 
-    data_location_forecast <- data.frame("time" = max_date + days(0:forecast),
-                                         "location_name" = rep(aggregate_name, forecast + 1),
+    data_location_forecast <- data.frame("time" = rr$max_date + ifelse(rr$is_weekly,weeks,days)(0:rr$forecast),
+                                         "location_name" = rep(aggregate_name, rr$forecast + 1),
                                          "estimated_deaths_forecast" = estimated_deaths_forecast,
                                          "death_min_forecast" = estimated_deaths_li_forecast,
                                          "death_max_forecast"= estimated_deaths_ui_forecast)
@@ -370,26 +417,16 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
     }
   }
 
-  # Get dates
-  min_missing_date <- min(as_date(model_output$covid_data$data_ocorrencia))
-  min_date <- min(reduce(model_output$stan_list$dates, min))
-  max_date <- reduce(model_output$stan_list$dates, max)
-  max_forecast_date <- max_date + forecast
-
-  # Get data length
-  missingN <- as.integer(min_date-min_missing_date)
-  fullN <- as.integer(max_date-min_missing_date)+1
-  N <- as.integer(max_date-min_date)+1
-  N2 <- as.integer(max_forecast_date-min_date)+1
+  rr <- get_ranges_counting_missing_data(model_output, forecast)
 
   pred_dims <- dim(model_output$out$prediction)
-  prediction_samples <- array(0, dim=c(pred_dims[[1]],N))
-  estimated_deaths_samples <- array(0, dim=c(pred_dims[[1]],N))
-  rt_samples <- array(0, dim=c(pred_dims[[1]],N))
-  rt_samples_n <- array(0, dim=c(pred_dims[[1]],N))
-  estimated_deaths_forecast_samples <- array(0, dim=c(pred_dims[[1]],forecast+1))
-  agg_reported_cases <- array(0, dim=fullN)
-  agg_reported_deaths <- array(0, dim=fullN)
+  prediction_samples <- array(0, dim=c(pred_dims[[1]],rr$N))
+  estimated_deaths_samples <- array(0, dim=c(pred_dims[[1]],rr$N))
+  rt_samples <- array(0, dim=c(pred_dims[[1]],rr$N))
+  rt_samples_n <- array(0, dim=c(pred_dims[[1]],rr$N))
+  estimated_deaths_forecast_samples <- array(0, dim=c(pred_dims[[1]],rr$forecast+1))
+  agg_reported_cases <- array(0, dim=rr$fullN)
+  agg_reported_deaths <- array(0, dim=rr$fullN)
 
   for(location in location_names) {
     i <- which(model_output$stan_list$available_locations == location)
@@ -398,7 +435,7 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
     location_end_date <- max(model_output$stan_list$dates[[i]])
 
     # Index of this location's start date in the aggregate vector
-    loc_N_s <- 1 + as.integer((location_start_date - min_date))
+    loc_N_s <- 1 + time_length(location_start_date - rr$min_date, ifelse(rr$is_weekly, "week", "day"))
     # Length of this location's variable
     loc_N_l <- model_output$stan_list$stan_data$N[i]
 
@@ -422,7 +459,7 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
     # Weighted by pop
     rt_samples_n[,agg_idx] <- rt_samples_n[,agg_idx] + model_output$stan_list$stan_data$pop[i]
 
-    estimated_deaths_forecast_samples[,1:(forecast+1)] <- estimated_deaths_samples[,1:(forecast+1)] + model_output$out$E_deaths[,loc_N_l:(loc_N_l+forecast),i]
+    estimated_deaths_forecast_samples[,1:(rr$forecast+1)] <- estimated_deaths_samples[,1:(rr$forecast+1)] + model_output$out$E_deaths[,loc_N_l:(loc_N_l+rr$forecast),i]
 
     # (UNUSED) Getting cases and deaths from the data available for the model's input
     #agg_reported_cases[agg_idx] <-agg_reported_cases[orig_agg_idx] + model_output$stan_list$reported_cases[[i]]
@@ -433,11 +470,22 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
     # the data preparation phase (`R/preprocessing/get_stan_data_for_location`),
     # there is a filter that can remove some data before feeding it to the model.
     original_data <- model_output$covid_data %>% filter(location_name == location)
+    if(rr$is_weekly){
+      original_data <- original_data %>%
+        group_by(
+          location_name,
+          data_ocorrencia = cut(data_ocorrencia, "week", start.on.monday = TRUE)
+        ) %>%
+        summarise(
+          casos=sum(casos),
+          obitos=sum(obitos))
+      original_data$data_ocorrencia <- ymd(original_data$data_ocorrencia)
+    }
 
     min_original_data_date <- min(original_data$data_ocorrencia)
-    max_original_data_date <- min(max(original_data$data_ocorrencia), max_date)
-    original_data_start <-1 + as.integer((min_original_data_date - min_missing_date))
-    original_data_length <- (max_original_data_date - min_original_data_date)
+    max_original_data_date <- min(max(original_data$data_ocorrencia), rr$max_date)
+    original_data_start <- 1 + time_length(min_original_data_date - rr$min_missing_date, ifelse(rr$is_weekly, "week", "day"))
+    original_data_length <- time_length(max_original_data_date - min_original_data_date, ifelse(rr$is_weekly, "week", "day"))
     orig_agg_idx <- original_data_start:(original_data_start+original_data_length)
 
     agg_reported_cases[orig_agg_idx] <- agg_reported_cases[orig_agg_idx] + original_data$casos
@@ -476,10 +524,10 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
   rt_ui2 <- matrixStats::colQuantiles(rt_samples,probs=.75)
 
   data_location <- data.frame(
-                              "time" = min_date + days(0:(N-1)),
-                              "location_name" = rep(aggregate_name, N),
-                              "reported_cases" = agg_reported_cases[(missingN+1):(missingN+N)],
-                              "deaths" = agg_reported_deaths[(missingN+1):(missingN+N)],
+                              "time" = rr$min_date + ifelse(rr$is_weekly,weeks,days)(0:(rr$N-1)),
+                              "location_name" = rep(aggregate_name, rr$N),
+                              "reported_cases" = agg_reported_cases[(rr$missingN+1):(rr$missingN+rr$N)],
+                              "deaths" = agg_reported_deaths[(rr$missingN+1):(rr$missingN+rr$N)],
                               "predicted_cases" = predicted_cases,
                               "predicted_min" = predicted_cases_li,
                               "predicted_max" = predicted_cases_ui,
@@ -496,11 +544,11 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
                               "rt_min2" = rt_li2,
                               "rt_max2" = rt_ui2)
 
-  missing_original_data <- data.frame("time" = min_missing_date + days(0:(fullN-1)),
-                                      "location_name" = rep(aggregate_name, fullN),
+  missing_original_data <- data.frame("time" = rr$min_missing_date + ifelse(rr$is_weekly,weeks,days)(0:(rr$fullN-1)),
+                                      "location_name" = rep(aggregate_name, rr$fullN),
                                       "reported_cases" = agg_reported_cases,
                                       "deaths" = agg_reported_deaths) %>%
-    mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time<min_date) %>%
+    mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time<rr$min_date) %>%
     select(-c(cum_cases))
 
   data_location <- bind_rows(missing_original_data, data_location) %>% replace(is.na(.), 0)
@@ -519,118 +567,11 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
            death_max_c= cumsum(death_max))
 
 
-  data_location_forecast <- data.frame("time" = max_date + days(0:forecast),
-                                       "location_name" = rep(aggregate_name, forecast + 1),
+  data_location_forecast <- data.frame("time" = rr$max_date + ifelse(rr$is_weekly,weeks,days)(0:rr$forecast),
+                                       "location_name" = rep(aggregate_name, rr$forecast + 1),
                                        "estimated_deaths_forecast" = estimated_deaths_forecast,
                                        "death_min_forecast" = estimated_deaths_li_forecast,
                                        "death_max_forecast"= estimated_deaths_ui_forecast)
-
-  list(data_location=data_location, data_location_forecast=data_location_forecast)
-}
-
-get_forecast_dfs <- function(location_name, model_output, forecast=30){
-  require(lubridate)
-
-  i <- which(model_output$stan_list$available_locations == location_name)
-
-  N <- model_output$stan_list$stan_data$N[i]
-  N2 <- N + forecast
-
-
-  #### COMPUTE PREDICTIONS ####
-  prediction <- model_output$out$prediction
-
-  predicted_cases <- colMeans(prediction[,1:N,i])
-  predicted_cases_li <- matrixStats::colQuantiles(prediction[,1:N,i], probs=.025)
-  predicted_cases_ui <- matrixStats::colQuantiles(prediction[,1:N,i], probs=.975)
-  predicted_cases_li2 <- matrixStats::colQuantiles(prediction[,1:N,i], probs=.25)
-  predicted_cases_ui2 <- matrixStats::colQuantiles(prediction[,1:N,i], probs=.75)
-
-  #### COMPUTE ESTIMATED DEATHS ####
-  estimated.deaths <- model_output$out$E_deaths
-  estimated_deaths <- colMeans(estimated.deaths[,1:N,i])
-  estimated_deaths_li <- matrixStats::colQuantiles(estimated.deaths[,1:N,i], probs=.025)
-  estimated_deaths_ui <- matrixStats::colQuantiles(estimated.deaths[,1:N,i], probs=.975)
-  estimated_deaths_li2 <- matrixStats::colQuantiles(estimated.deaths[,1:N,i], probs=.25)
-  estimated_deaths_ui2 <- matrixStats::colQuantiles(estimated.deaths[,1:N,i], probs=.75)
-
-
-  #### COMPUTE FORECAST OF ESTIMATED DEATHS ####
-  estimated_deaths_forecast <- colMeans(estimated.deaths[,1:N2,i])[N:N2]
-  estimated_deaths_li_forecast <- matrixStats::colQuantiles(estimated.deaths[,1:N2,i], probs=.025)[N:N2]
-  estimated_deaths_ui_forecast <- matrixStats::colQuantiles(estimated.deaths[,1:N2,i], probs=.975)[N:N2]
-  estimated_deaths_li2_forecast <- matrixStats::colQuantiles(estimated.deaths[,1:N2,i], probs=.25)[N:N2]
-  estimated_deaths_ui2_forecast <- matrixStats::colQuantiles(estimated.deaths[,1:N2,i], probs=.75)[N:N2]
-
-  #### COMPUTE RT ####
-  rt <- colMeans(model_output$out$Rt[,1:N,i])
-  rt_li <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.025)
-  rt_ui <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.975)
-  rt_li2 <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.25)
-  rt_ui2 <- matrixStats::colQuantiles(model_output$out$Rt[,1:N,i],probs=.75)
-
-  data_location <- data.frame("time" = as_date(as.character(model_output$stan_list$dates[[i]])),
-                             "location_name" = rep(location_name, length(model_output$stan_list$dates[[i]])),
-                             "reported_cases" = model_output$stan_list$reported_cases[[i]],
-                             "predicted_cases" = predicted_cases,
-                             "predicted_min" = predicted_cases_li,
-                             "predicted_max" = predicted_cases_ui,
-                             "predicted_min2" = predicted_cases_li2,
-                             "predicted_max2" = predicted_cases_ui2,
-                             "deaths" = model_output$stan_list$deaths_by_location[[i]],
-                             "estimated_deaths" = estimated_deaths,
-                             "death_min" = estimated_deaths_li,
-                             "death_max"= estimated_deaths_ui,
-                             "death_min2" = estimated_deaths_li2,
-                             "death_max2"= estimated_deaths_ui2,
-                             "rt" = rt,
-                             "rt_min" = rt_li,
-                             "rt_max" = rt_ui,
-                             "rt_min2" = rt_li2,
-                             "rt_max2" = rt_ui2)
-
-  #### ADD MISSING ORIGINAL DATA ####
-  # Because of the filters performed and described on `R/preprocessing/get_stan_data_for_location`,
-  #  the first deaths might not appear on the model's internal deaths dataframe.
-  # Therefore, we need to add the missing data from the original data frame (model_output$covid_data)
-  min_date <-
-    data_location %>%
-    filter(time == min(time)) %>%
-    select(location_name, time) %>%
-    rename(min_internal_date=time)
-
-  name_of_location <- location_name
-  missing_original_data <- model_output$covid_data %>% filter(location_name == name_of_location)
-  missing_original_data <-
-    missing_original_data %>%
-    rename(time=data_ocorrencia, reported_cases=casos, deaths=obitos) %>%
-    full_join(min_date) %>%
-    mutate(cum_cases=cumsum(reported_cases)) %>% filter(cum_cases > 0, time < min_internal_date) %>%
-    select(-c(min_internal_date, cum_cases))
-
-  data_location <- bind_rows(missing_original_data, data_location) %>% replace(is.na(.), 0)
-
-  #### ADD CUMULATIVE SUMS ####
-  data_location <-
-    data_location %>%
-    arrange(time) %>%
-    mutate(reported_cases_c = cumsum(reported_cases),
-           predicted_cases_c = cumsum(predicted_cases),
-           predicted_min_c = cumsum(predicted_min),
-           predicted_max_c = cumsum(predicted_max),
-           deaths_c = cumsum(deaths),
-           estimated_deaths_c =  cumsum(estimated_deaths),
-           death_min_c = cumsum(death_min),
-           death_max_c= cumsum(death_max))
-
-
-  times <- as_date(as.character(model_output$stan_list$dates[[i]]))
-  times_forecast <- times[length(times)] + 0:forecast
-  data_location_forecast <- data.frame("time" = times_forecast,
-                                      "location_name" = rep(location_name, forecast + 1),
-                                      "estimated_deaths_forecast" = estimated_deaths_forecast,
-                                      "death_min_forecast" = estimated_deaths_li_forecast,
-                                      "death_max_forecast"= estimated_deaths_ui_forecast)
 
   list(data_location=data_location, data_location_forecast=data_location_forecast)
 }
@@ -665,9 +606,14 @@ round_y_breaks <- function(max_y_break, n_breaks=4, min_y_break=0){
 }
 
 save_data_for_dashboard <- function(model_output, save_path="./", aggregate_name=NULL) {
+  require(readr)
   available_locations <- model_output$stan_list$available_locations
 
   dir.create(paste0(save_path, "dashboard_results/", model_output$reference_date_str), recursive = TRUE, showWarnings = FALSE)
+
+  if(model_output$is_weekly){
+    write_lines("TRUE", paste0(save_path, "dashboard_results/", model_output$reference_date_str, "/is_weekly.txt"))
+  }
 
   for(location_name in available_locations){
     print(paste0("Saving data for ", location_name))

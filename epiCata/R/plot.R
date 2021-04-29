@@ -56,12 +56,14 @@ get_dfs <- function(location_names, model_output, aggregate_name=NULL) {
 
 make_all_three_panel_plot <- function(model_output,aggregate_name=NULL, save_path="./"){
   require(epiCataPlot)
+
   available_locations <- model_output$stan_list$available_locations
 
   for(location_name in available_locations){
     make_three_panel_plot(location_name,
                           get_dfs(location_name, model_output),
                           model_output$reference_date_str,
+                          model_is_weekly = model_output$is_weekly,
                           auto_save=TRUE, save_path=save_path,
                           filename_suffix=model_output$filename_suffix)
   }
@@ -69,8 +71,8 @@ make_all_three_panel_plot <- function(model_output,aggregate_name=NULL, save_pat
     make_three_panel_plot(aggregate_name,
                           get_dfs(available_locations, model_output, aggregate_name),
                           model_output$reference_date_str,
-                          auto_save=TRUE,
-                          save_path=save_path,
+                          model_is_weekly = model_output$is_weekly,
+                          auto_save=TRUE, save_path=save_path,
                           filename_suffix=model_output$filename_suffix)
   }
 }
@@ -79,82 +81,7 @@ make_all_three_panel_plot <- function(model_output,aggregate_name=NULL, save_pat
 
 make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_breaks=NULL, max_y_breaks=NULL, week_max_y_breaks=NULL, save_path="./"){
   require(epiCataPlot)
-  available_locations <- model_output$stan_list$available_locations
-
-  for(location_name in available_locations){
-    min_y_break <- if(!is.null(min_y_breaks) && length(min_y_breaks)>1){
-      min_y_breaks[[location_name]]
-    } else {
-      min_y_breaks
-    }
-    max_y_break <- if(!is.null(max_y_breaks) && length(max_y_breaks)>1){
-      max_y_breaks[[location_name]]
-    } else {
-      max_y_breaks
-    }
-    week_max_y_break <- if(!is.null(week_max_y_breaks) && length(week_max_y_breaks)>1){
-      week_max_y_breaks[[location_name]]
-    } else {
-      week_max_y_breaks
-    }
-    dfs <- get_dfs(location_name, model_output)
-    make_forecast_plot(location_name,
-                       dfs,
-                       model_output$reference_date_str,
-                       is_weekly=FALSE,
-                       min_y_break=min_y_break,
-                       max_y_break=max_y_break,
-                       auto_save=TRUE,
-                       save_path=save_path,
-                       filename_suffix=model_output$filename_suffix)
-    make_forecast_plot(location_name,
-                       dfs,
-                       model_output$reference_date_str,
-                       is_weekly=TRUE,
-                       min_y_break=min_y_break,
-                       max_y_break=week_max_y_break,
-                       auto_save=TRUE,
-                       save_path=save_path,
-                       filename_suffix=model_output$filename_suffix)
-  }
-
-  if(!is.null(aggregate_name)){
-    min_y_break <- if(!is.null(min_y_breaks) && length(min_y_breaks)>1){
-      min_y_breaks[[aggregate_name]]
-    } else {
-      min_y_breaks
-    }
-    max_y_break <- if(!is.null(max_y_breaks) && length(max_y_breaks)>1){
-      max_y_breaks[[aggregate_name]]
-    } else {
-      max_y_breaks
-    }
-    week_max_y_break <- if(!is.null(week_max_y_breaks) && length(week_max_y_breaks)>1){
-      week_max_y_breaks[[aggregate_name]]
-    } else {
-      week_max_y_breaks
-    }
-
-    dfs <- get_dfs(available_locations, model_output, aggregate_name)
-    make_forecast_plot(location_name,
-                       dfs,
-                       model_output$reference_date_str,
-                       is_weekly=FALSE,
-                       min_y_break=min_y_break,
-                       max_y_break=max_y_break,
-                       auto_save=TRUE,
-                       save_path=save_path,
-                       filename_suffix=model_output$filename_suffix)
-    make_forecast_plot(location_name,
-                       dfs,
-                       model_output$reference_date_str,
-                       is_weekly=TRUE,
-                       min_y_break=min_y_break,
-                       max_y_break=week_max_y_break,
-                       auto_save=TRUE,
-                       save_path=save_path,
-                       filename_suffix=model_output$filename_suffix)
-  }
+  make_all_forecast_plots(model_output, aggregate_name=aggregate_name, min_y_breaks=min_y_breaks, max_y_breaks=max_y_breaks, week_max_y_breaks=week_max_y_breaks, save_path=save_path)
 }
 
 ### Recent C plots ###
@@ -207,7 +134,7 @@ make_C_plot <- function(location_names, model_output, auto_save=TRUE, min_x_brea
     x_min_date <- x_min_date - days(7 - rest)
   } else {
     x_max_date <- max(dfs$data_location$time)
-    x_min_date <- min_x_break
+    x_min_date <- min(filter(dfs$data_location, time>=min_x_break)$time)
   }
 
   x_breaks <- seq(x_min_date, x_max_date, by="week")
@@ -219,7 +146,7 @@ make_C_plot <- function(location_names, model_output, auto_save=TRUE, min_x_brea
     }
   }
 
-  plot_C <- plot_graph_C(aggregate_name, x_breaks, dfs)
+  plot_C <- plot_graph_C(aggregate_name, x_breaks, dfs, model_is_weekly = model_output$is_weekly)
 
   if(auto_save){
     plot_C_filename <- sprintf("%sfigures/%s/GRAFICO_RECENTE_C_%s_%s.png", save_path, reference_date_str, aggregate_name, model_output$filename_suffix)

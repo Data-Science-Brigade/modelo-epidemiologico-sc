@@ -5,6 +5,7 @@ read_interventions <- function(interventions_filename, allowed_interventions=NUL
   require(tidyverse)
   require(lubridate)
 
+  # We stopped using government interventions as covariates
   if(FALSE){
     interventions <- readxl::read_excel(interventions_filename, 4)
 
@@ -36,8 +37,9 @@ read_interventions <- function(interventions_filename, allowed_interventions=NUL
 
   }
 
-  google_mobility <- read_google_mobility(google_mobility_filename, window_size=google_mobility_window_size)
+  google_mobility <- process_google_mobility(read_google_mobility(google_mobility_filename), window_size=google_mobility_window_size)
   if(!is.null(google_mobility)){
+    # We stopped using government interventions as covariates
     interventions <- google_mobility#bind_rows(interventions, google_mobility)
   }
 
@@ -49,21 +51,12 @@ google_mobility_window_summary <- function(mobility_data) {
   summarise(mobility_data, start=min(DATA), end=max(DATA), ADERENCIA=mean(ADERENCIA))
 }
 
-read_google_mobility <- function(google_mobility_filename, window_size=0){
+read_google_mobility <- function(google_mobility_filename){
   if(is.null(google_mobility_filename)){
     NULL
   }else{
     require(readr)
     require(tidyverse)
-    require(lubridate)
-    require(slider)
-    cols <- c("date",
-              "retail_and_recreation_percent_change_from_baseline",
-              "grocery_and_pharmacy_percent_change_from_baseline",
-              "parks_percent_change_from_baseline",
-              "transit_stations_percent_change_from_baseline",
-              "workplaces_percent_change_from_baseline",
-              "residential_percent_change_from_baseline")
 
 
     coltypes <- cols_only( # c for character, D for Date and d for double.
@@ -79,6 +72,54 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
       residential_percent_change_from_baseline="d")
 
     mobility <- readr::read_csv(google_mobility_filename, col_types=coltypes)
+    mobility <- mobility %>% filter(country_region_code == "BR")
+    mobility
+  }
+}
+
+slide_google_mobility <- function(mobility, window_size){
+  mobility_long <- mobility %>%
+    gather(key="AREA", value = "ADERENCIA", -date) %>%
+    rename(DATA=date) %>%
+    mutate(ADERENCIA=ADERENCIA/100)
+
+  mobility_ordered <- mobility_long %>% arrange(DATA)
+
+  groups <- unique(mobility_ordered$AREA)
+
+  # TODO: Group map?
+  mobility_slided_list <- list()
+  for(i in seq_along(groups)) {
+    group <- groups[[i]]
+    group_data <- mobility_ordered %>% filter(AREA==group)
+    slided_group_data <-
+      slide_period_dfr(group_data, group_data$DATA, "day", google_mobility_window_summary, .before=window_size) %>%
+      select(-start) %>%
+      rename(DATA=end)
+    slided_group_data[["AREA"]] <- group
+    mobility_slided_list[[i]] <- slided_group_data
+  }
+  mobility_slided <- bind_rows(mobility_slided_list) %>% relocate(AREA, .before=ADERENCIA)
+
+  mobility_slided
+}
+
+process_google_mobility <- function(mobility, window_size=0){
+  if(is.null(mobility)){
+    NULL
+  }else{
+    require(tidyverse)
+    require(lubridate)
+    require(slider)
+
+    cols <- c("date",
+         "retail_and_recreation_percent_change_from_baseline",
+         "grocery_and_pharmacy_percent_change_from_baseline",
+         "parks_percent_change_from_baseline",
+         "transit_stations_percent_change_from_baseline",
+         "workplaces_percent_change_from_baseline",
+         "residential_percent_change_from_baseline")
+
     mobility <- mobility %>% filter(iso_3166_2_code == "BR-SC")
 
     mobility <- mobility[, cols]
@@ -89,29 +130,7 @@ read_google_mobility <- function(google_mobility_filename, window_size=0){
       return(mobility)
     }
 
-    mobility_long <- mobility %>%
-      gather(key="AREA", value = "ADERENCIA", -date) %>%
-      rename(DATA=date) %>%
-      mutate(ADERENCIA=ADERENCIA/100)
-
-    mobility_ordered <- mobility_long %>% arrange(DATA)
-
-    groups <- unique(mobility_ordered$AREA)
-
-    # TODO: Group map?
-    mobility_slided_list <- list()
-    for(i in seq_along(groups)) {
-      group <- groups[[i]]
-      group_data <- mobility_ordered %>% filter(AREA==group)
-      slided_group_data <-
-        slide_period_dfr(group_data, group_data$DATA, "day", google_mobility_window_summary, .before=window_size) %>%
-        select(-start) %>%
-        rename(DATA=end)
-      slided_group_data[["AREA"]] <- group
-      mobility_slided_list[[i]] <- slided_group_data
-    }
-    mobility_slided <- bind_rows(mobility_slided_list) %>% relocate(AREA, .before=ADERENCIA)
-
+    mobility_slided <- slide_google_mobility(mobility, window_size)
     mobility_slided
   }
 }
@@ -134,7 +153,9 @@ mobility_city_name_to_internal_city_name <- function(cities) {
   sprintf("SC_MUN_%s", cities)
 }
 
-get_cities_pop_in_region <- function(region_name, population_filename="./pop_and_regions.csv"){
+read_pop_df <- function(population_filename){
+  # This reads the population as a wide DF instead of a long one.
+  require(readr)
   require(tidyverse)
   require(dplyr)
   pop_df <- readr::read_csv(population_filename) %>%
@@ -142,6 +163,11 @@ get_cities_pop_in_region <- function(region_name, population_filename="./pop_and
            nom_regiaosaude=paste0("SC_RSA_", gsub(" ", "_", nom_regiaosaude)),
            nom_regional=paste0("SC_MAC_", gsub(" ", "_", nom_regional))) %>%
     rename(pop=qtd_populacao_estimada)
+}
+
+get_cities_pop_in_region <- function(pop_df, region_name){
+  require(tidyverse)
+  require(dplyr)
 
   if(grepl("SC_MUN_", region_name, fixed=TRUE)){
     pop_df <- pop_df %>% filter(nom_municipio==region_name)
@@ -152,14 +178,14 @@ get_cities_pop_in_region <- function(region_name, population_filename="./pop_and
   } else if(grepl("SC_ESTADO", region_name, fixed=TRUE)){
     pop_df
   } else {
-    stop("Region must start either with SC_MUN, SC_RSA, SC_MAC, or SC_ESTADO")
+    error("Region must start either with SC_MUN, SC_RSA, SC_MAC, or SC_ESTADO")
   }
 
   pop_df %>% select(nom_municipio, pop)
 }
 
-read_google_mobility_for_cities <- function(region_name, google_mobility_filename="./Global_Mobility_Report.csv", window_size=7, population_filename="./pop_and_regions.csv"){
-  if(is.null(google_mobility_filename)){
+process_google_mobility_for_cities <- function(region_name, mobility, pop_df, window_size=7){
+  if(is.null(mobility)){
     NULL
   }else{
     require(readr)
@@ -167,33 +193,11 @@ read_google_mobility_for_cities <- function(region_name, google_mobility_filenam
     require(dplyr)
     require(lubridate)
     require(slider)
-    cols <- c("date",
-              "retail_and_recreation_percent_change_from_baseline",
-              "grocery_and_pharmacy_percent_change_from_baseline",
-              "parks_percent_change_from_baseline",
-              "transit_stations_percent_change_from_baseline",
-              "workplaces_percent_change_from_baseline",
-              "residential_percent_change_from_baseline")
 
-    coltypes <- cols_only( # c for character, D for Date and d for double.
-                     iso_3166_2_code="c",
-                     country_region_code="c",
-                     sub_region_2="c",
-                     date="D",
-                     retail_and_recreation_percent_change_from_baseline="d",
-                     grocery_and_pharmacy_percent_change_from_baseline="d",
-                     parks_percent_change_from_baseline="d",
-                     transit_stations_percent_change_from_baseline="d",
-                     workplaces_percent_change_from_baseline="d",
-                     residential_percent_change_from_baseline="d")
-
-    mobility <- readr::read_csv(google_mobility_filename, col_types=coltypes)
-    mobility <- mobility %>% filter(country_region_code == "BR")
-    unique(mobility_city_name_to_internal_city_name(mobility$sub_region_2))
     mobility$sub_region_2 <- mobility_city_name_to_internal_city_name(mobility$sub_region_2)
     mobility <- mobility %>% rename(nom_municipio = sub_region_2)
 
-    pop_df <- get_cities_pop_in_region(region_name)
+    pop_df <- get_cities_pop_in_region(pop_df, region_name)
 
     mobility_cities <- mobility %>%
       inner_join(pop_df, by="nom_municipio") %>%
@@ -208,7 +212,7 @@ read_google_mobility_for_cities <- function(region_name, google_mobility_filenam
       ) %>%
       ungroup()
 
-    mobility <- mobility_cities#mobility[, cols]
+    mobility <- mobility_cities
     mobility$date <- ymd(mobility$date)
 
     if(dim(mobility)[[1]]<=0) {
@@ -216,29 +220,7 @@ read_google_mobility_for_cities <- function(region_name, google_mobility_filenam
       return(mobility)
     }
 
-    mobility_long <- mobility %>%
-      gather(key="AREA", value = "ADERENCIA", -date) %>%
-      rename(DATA=date) %>%
-      mutate(ADERENCIA=ADERENCIA/100)
-
-    mobility_ordered <- mobility_long %>% arrange(DATA)
-
-    groups <- unique(mobility_ordered$AREA)
-
-    # TODO: Group map?
-    mobility_slided_list <- list()
-    for(i in seq_along(groups)) {
-      group <- groups[[i]]
-      group_data <- mobility_ordered %>% filter(AREA==group)
-      slided_group_data <-
-        slide_period_dfr(group_data, group_data$DATA, "day", google_mobility_window_summary, .before=window_size) %>%
-        select(-start) %>%
-        rename(DATA=end)
-      slided_group_data[["AREA"]] <- group
-      mobility_slided_list[[i]] <- slided_group_data
-    }
-    mobility_slided <- bind_rows(mobility_slided_list) %>% relocate(AREA, .before=ADERENCIA)
-
+    mobility_slided <- slide_google_mobility(mobility, window_size)
     mobility_slided
   }
 }

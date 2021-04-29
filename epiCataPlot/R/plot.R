@@ -68,12 +68,17 @@ plot_final_Rt <- function(model_output, auto_save=TRUE, save_path="./"){
   g
 }
 
-make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_save=TRUE, min_x_break=NULL, save_path="./", filename_suffix="", file_extension="png"){
+make_three_panel_plot <- function(aggregate_name, dfs,  reference_date_str,
+                                  model_is_weekly = FALSE, auto_save=TRUE,
+                                  min_x_break=NULL, max_breaks=12, save_path="./",
+                                  filename_suffix="", file_extension="png"){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggplot2)
   require(scales)
   require(lubridate)
+
+  model_is_weekly <- ifelse(is.null(model_is_weekly),FALSE,model_is_weekly)
 
   cat(sprintf("\n> Making 3-plots panel for %s", aggregate_name))
 
@@ -85,24 +90,19 @@ make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_
   }
   x_max_date <- max(dfs$data_location$time)
 
-  rest <- as.integer(x_max_date - x_min_date) %% 7
-  x_min_date <- x_min_date - days(7 - rest)
+  # Could do a non-loop version, but I believe this is more readable
+  weeks <- 0
+  repeat{
+    weeks <- weeks + 1
+    rest <- as.integer(x_max_date - x_min_date) %% (7*weeks)
+    x_min_date_shifted <- x_min_date - days((7*weeks) - rest)
 
-  x_breaks <- seq(x_min_date, x_max_date, by="week")
-
-  if(length(x_breaks) > 17){
-    for(d in c(0,7,14,21)){
-      x_breaks <- seq(x_min_date + days(d), x_max_date, by="4 weeks")
-      if(x_breaks[length(x_breaks)] == x_max_date){
-        break
-      }
-    }
-  }else if(length(x_breaks) > 11){
-    x_breaks <- seq(x_min_date, x_max_date, by="2 weeks")
-    if(x_breaks[length(x_breaks)] != x_max_date){
-      x_breaks <- seq(x_min_date + days(7), x_max_date, by="2 weeks")
+    x_breaks <- seq(x_min_date_shifted, x_max_date, by=ifelse(weeks==1,"week",paste0(weeks, " weeks")))
+    if(length(x_breaks) <= max_breaks){
+      break
     }
   }
+  x_breaks
 
   if(!is.null(min_x_break)){
     valid_x_breaks <- sapply(x_breaks, function(x_break){x_break >= ymd(min_x_break)})
@@ -111,7 +111,7 @@ make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_
 
   #### PLOTS ####
 
-  plot_A <- plot_graph_A(aggregate_name, x_breaks, dfs)
+  plot_A <- plot_graph_A(aggregate_name, x_breaks, dfs, model_is_weekly = model_is_weekly)
 
   if(auto_save){
     plot_A_filename <- sprintf("%sfigures/%s/GRAFICO_A_%s_%s.%s", save_path, reference_date_str, aggregate_name, filename_suffix, file_extension="png")
@@ -119,7 +119,7 @@ make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_
     ggsave(file=plot_A_filename, plot_A, width = 6, height=4)#, type="cairo")
   }
 
-  plot_B <- plot_graph_B(aggregate_name, x_breaks, dfs)
+  plot_B <- plot_graph_B(aggregate_name, x_breaks, dfs, model_is_weekly = model_is_weekly)
 
   if(auto_save){
     plot_B_filename <- sprintf("%sfigures/%s/GRAFICO_B_%s_%s.%s", save_path, reference_date_str, aggregate_name, filename_suffix, file_extension="png")
@@ -127,7 +127,7 @@ make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_
     ggsave(file=plot_B_filename, plot_B, width = 6, height=4)#, type="cairo")
   }
 
-  plot_C <- plot_graph_C(aggregate_name, x_breaks, dfs)
+  plot_C <- plot_graph_C(aggregate_name, x_breaks, dfs, model_is_weekly = model_is_weekly)
 
   if(auto_save){
     plot_C_filename <- sprintf("%sfigures/%s/GRAFICO_C_%s_%s.%s", save_path, reference_date_str, aggregate_name, filename_suffix, file_extension="png")
@@ -146,11 +146,18 @@ make_three_panel_plot <- function(aggregate_name, dfs, reference_date_str, auto_
 	p
 }
 
-plot_graph_A <- function(location_name, x_breaks, dfs){
+plot_graph_A <- function(location_name, x_breaks, dfs, model_is_weekly = FALSE){
   require(tidyverse)
   require(ggplot2)
   require(scales)
   require(lubridate)
+  model_is_weekly <- ifelse(is.null(model_is_weekly),FALSE,model_is_weekly)
+
+  if(model_is_weekly) {
+    dfs$data_location$time <- dfs$data_location$time + days(6)
+    dfs$data_location_forecast$time <- dfs$data_location_forecast$time + days(6)
+    x_breaks <- x_breaks + days(6)
+  }
 
   #### CREATE DATAFRAMES FOR 95% INTERVAL AND 50% INTERVAL ####
   data_cases_95 <- data.frame(dfs$data_location$time,
@@ -213,11 +220,18 @@ plot_graph_A <- function(location_name, x_breaks, dfs){
 
 }
 
-plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=FALSE){
+plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=FALSE, model_is_weekly = FALSE){
   require(tidyverse)
   require(ggplot2)
   require(scales)
   require(lubridate)
+  model_is_weekly <- ifelse(is.null(model_is_weekly),FALSE,model_is_weekly)
+
+  if(model_is_weekly) {
+    dfs$data_location$time <- dfs$data_location$time + days(6)
+    dfs$data_location_forecast$time <- dfs$data_location_forecast$time + days(6)
+    x_breaks <- x_breaks + days(6)
+  }
 
   #### CREATE DATAFRAMES FOR 95% INTERVAL AND 50% INTERVAL ####
   data_deaths_95 <- data.frame(dfs$data_location$time,
@@ -274,11 +288,18 @@ plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative=FALSE){
   plot_B
 }
 
-plot_graph_C <- function(location_name, x_breaks, dfs){
+plot_graph_C <- function(location_name, x_breaks, dfs, use_stepribbon=FALSE, model_is_weekly = FALSE){
   require(tidyverse)
   require(ggplot2)
   require(scales)
   require(lubridate)
+  model_is_weekly <- ifelse(is.null(model_is_weekly),FALSE,model_is_weekly)
+
+  if(model_is_weekly) {
+    dfs$data_location$time <- dfs$data_location$time + days(6)
+    dfs$data_location_forecast$time <- dfs$data_location_forecast$time + days(6)
+    x_breaks <- x_breaks + days(6)
+  }
 
   #### CREATE DATAFRAMES FOR 95% INTERVAL AND 50% INTERVAL ####
   data_rt_95 <- data.frame(dfs$data_location$time,
@@ -331,9 +352,12 @@ plot_graph_C <- function(location_name, x_breaks, dfs){
     }
 
   plot_C <- ggplot(dfs$data_location) +
-    geom_stepribbon(data = data_rt, aes(x = time, ymin = rt_min, ymax = rt_max,
-                                        group = key,
-                                        fill = key)) +
+    ifelse(use_stepribbon,geom_stepribbon,geom_ribbon)(data = data_rt,
+                                                       aes(x = time,
+                                                           ymin = rt_min,
+                                                           ymax = rt_max,
+                                                           group = key,
+                                                           fill = key)) +
     xlab("") +
     ylab(expression(R[t])) +
     scale_fill_manual(name = "Faixa de Erro", labels = c("Vlr. Medio", "Variacao"),
@@ -384,6 +408,7 @@ make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_bre
                        dfs,
                        model_output$reference_date_str,
                        is_weekly=FALSE,
+                       model_is_weekly=model_output$is_weekly,
                        min_y_break=min_y_break,
                        max_y_break=max_y_break,
                        auto_save=TRUE,
@@ -393,6 +418,7 @@ make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_bre
                        dfs,
                        model_output$reference_date_str,
                        is_weekly=TRUE,
+                       model_is_weekly=model_output$is_weekly,
                        min_y_break=min_y_break,
                        max_y_break=week_max_y_break,
                        auto_save=TRUE,
@@ -422,30 +448,35 @@ make_all_forecast_plots <- function(model_output, aggregate_name=NULL, min_y_bre
                        dfs,
                        model_output$reference_date_str,
                        is_weekly=FALSE,
+                       model_is_weekly=model_output$is_weekly,
                        min_y_break=min_y_break,
                        max_y_break=max_y_break,
                        auto_save=TRUE,
                        save_path=save_path,
                        filename_suffix=model_output$filename_suffix)
-    make_forecast_plot(location_name,
-                       dfs,
-                       model_output$reference_date_str,
-                       is_weekly=TRUE,
-                       min_y_break=min_y_break,
-                       max_y_break=week_max_y_break,
-                       auto_save=TRUE,
-                       save_path=save_path,
-                       filename_suffix=model_output$filename_suffix)
+    if(!model_output$is_weekly){
+      make_forecast_plot(location_name,
+                         dfs,
+                         model_output$reference_date_str,
+                         is_weekly=TRUE,
+                         model_is_weekly=model_output$is_weekly,
+                         min_y_break=min_y_break,
+                         max_y_break=week_max_y_break,
+                         auto_save=TRUE,
+                         save_path=save_path,
+                         filename_suffix=model_output$filename_suffix)
+    }
   }
 }
 
-make_forecast_plot <- function(aggregate_name, dfs, reference_date_str, is_weekly, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, save_path="./", filename_suffix="", file_extension="png"){
+make_forecast_plot <- function(aggregate_name, dfs, reference_date_str, is_weekly, model_is_weekly=FALSE, auto_save=TRUE, min_y_break=NULL, max_y_break=NULL, save_path="./", filename_suffix="", file_extension="png"){
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggrepel)
   require(ggplot2)
   require(scales)
   require(lubridate)
+  model_is_weekly <- ifelse(is.null(model_is_weekly),FALSE,model_is_weekly)
 
   cat(sprintf("\n> Making forecast plots for %s", aggregate_name))
 
@@ -462,8 +493,9 @@ make_forecast_plot <- function(aggregate_name, dfs, reference_date_str, is_weekl
                             df_rts,
                             reference_date,
                             next_week=is_weekly,
+                            model_is_weekly=model_is_weekly,
                             min_y_break=min_y_break,
-                            max_y_break=max_y_break)
+                            max_y_break=max_y_break,)
 
   p <- p + ggtitle(paste0("(", aggregate_name, ") Cenarios do Modelo do dia ", strftime(ymd(reference_date_str), "%d/%m/%Y")))
 
@@ -484,16 +516,25 @@ make_forecast_plot <- function(aggregate_name, dfs, reference_date_str, is_weekl
 make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
                                  reference_date, max_date=NULL,
                                  next_week=FALSE,
+                                 model_is_weekly=FALSE,
                                  min_y_break=NULL,
                                  max_y_break=NULL){
   require(tidyverse)
   require(ggplot2)
   require(scales)
   require(lubridate)
+  model_is_weekly <- ifelse(is.null(model_is_weekly),FALSE,model_is_weekly)
+
+  time_unit <- ifelse(model_is_weekly,weeks,days)
+
+  if(model_is_weekly) {
+    cumulative_deaths$time <- cumulative_deaths$time + days(6)
+    reference_date <- reference_date + days(6)
+  }
 
   cumulative_deaths <- cumulative_deaths %>%
     gather("key" = key, "value" = value, -time) %>%
-    filter(time >= ymd(reference_date) - days(1)) %>% drop_na()
+    filter(time >= ymd(reference_date) - time_unit(1)) %>% drop_na()
 
   if(is.null(df_rts)){
     fill_labels <- c("Cenario 1", "Cenario 2", "Cenario 3", "Obitos confirmados")
@@ -511,19 +552,20 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
   color_vals <- c("#FFA600", "#FF6F00", "#FF0000", "#7300FF")
   names(color_vals) <- levels(cumulative_deaths$key)
 
-  x_breaks_by <- ifelse(next_week, "days", "weeks")
+  x_breaks_by <- ifelse(next_week & !model_is_weekly, "days", "weeks")
 
-  x_min <- ymd(reference_date) - days(1)
+  x_min <- ymd(reference_date) - time_unit(1)
 
   x_max <-
     if(next_week){
-      ymd(reference_date) + days(6)
+      ymd(reference_date) + days(ifelse(model_is_weekly,0,6))
     }else{
       max(cumulative_deaths$time)
     }
 
-  x_breaks <- seq(x_min, x_max,by=x_breaks_by)
-  cumulative_deaths <- cumulative_deaths %>% filter(time >= ymd(reference_date) - days(1))
+  x_breaks <- seq(x_min, x_max, by=x_breaks_by)
+
+  cumulative_deaths <- cumulative_deaths %>% filter(time >= ymd(reference_date) - time_unit(1))
 
   if(next_week){
     cumulative_deaths <- cumulative_deaths %>% filter(time <= x_max)
@@ -536,7 +578,7 @@ make_cumulative_plot <- function(location_name, cumulative_deaths, df_rts=NULL,
   p <- p +
     geom_point(data=cumulative_deaths %>% filter(key != "Obitos confirmados", time %in% x_breaks), alpha=1, size=2)
 
-  p <- p + geom_label(data=cumulative_deaths %>% filter(time == ymd(reference_date) - days(1)),
+  p <- p + geom_label(data=cumulative_deaths %>% filter(time == ymd(reference_date) - time_unit(1)),
                       color='#FCFCFC', fill='#C8255f', size=4, show.legend = FALSE)
 
   if(is.null(min_y_break)){
@@ -775,19 +817,29 @@ get_weekly_average_xbreaks_and_points <- function(full_df, x_breaks=NULL, x_brea
   )
 }
 
-plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL, include_forecast=TRUE) {
+plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL, include_forecast=TRUE, model_is_weekly=FALSE) {
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(ggrepel)
   require(ggplot2)
   require(scales)
   require(lubridate)
+  model_is_weekly <- ifelse(is.null(model_is_weekly),FALSE,model_is_weekly)
 
-  full_df <- get_full_df_from_region_dfs(region_dfs, include_forecast=include_forecast)
+  full_df <- get_full_df_from_region_dfs(region_dfs, include_forecast=include_forecast, k=ifelse(model_is_weekly,1,7))
 
   x_breaks_and_points <- get_weekly_average_xbreaks_and_points(full_df, x_breaks)
   x_breaks <- x_breaks_and_points$x_breaks
   x_points <- x_breaks_and_points$x_points
+
+  if(model_is_weekly) {
+    full_df$time = full_df$time + days(6)
+    x_breaks <- x_breaks + days(6)
+    x_points <- x_points + days(6)
+    full_df$deaths_ravg <- full_df$deaths_ravg / 7
+    full_df$deaths_upper_ravg <- full_df$deaths_upper_ravg / 7
+    full_df$deaths_lower_ravg <- full_df$deaths_lower_ravg / 7
+  }
 
   pp <- ggplot(full_df, aes(x = time,
                       y=deaths_ravg,
@@ -811,7 +863,7 @@ plot_weekly_average_followup <- function(region_dfs, x_breaks=NULL, include_fore
   pp
 }
 
-plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL, min_x="2020-03-01", include_forecast=TRUE) {
+plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL, min_x="2020-03-01", include_forecast=TRUE, model_is_weekly=FALSE) {
   Sys.setlocale("LC_ALL","pt_BR.utf8")
   require(tidyverse)
   require(dplyr)
@@ -820,12 +872,15 @@ plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL, min_x="2020-0
   require(ggplot2)
   require(scales)
   require(lubridate)
-  by_num <- 2*7
+  model_is_weekly <- ifelse(is.null(model_is_weekly),FALSE,model_is_weekly)
+
+  by_steps <- 2
+  by_num <- by_steps*7
   by_shift <- by_num/2
-  by_txt <- "2 weeks"
+  by_txt <- paste0(by_steps," weeks")
   forecast_size <- 7 * if(include_forecast) {4} else {0}
 
-  full_df <- get_full_df_from_region_dfs(region_dfs, k=by_num, include_forecast=TRUE)
+  full_df <- get_full_df_from_region_dfs(region_dfs, k=ifelse(model_is_weekly,by_steps,by_num), include_forecast=TRUE)
 
   reference_date <- if(include_forecast){
     min(region_dfs[[1]]$data_location_forecast$time)
@@ -835,11 +890,20 @@ plot_weekly_average_heatmap <- function(region_dfs, x_breaks=NULL, min_x="2020-0
 
   if(is.null(x_breaks)){
     x_max <- reference_date + forecast_size
-    x_min <- max(min(full_df$time), ymd(min_x))
+    x_min <- min((full_df %>% filter(time>=ymd(min_x)))$time)
     while(as.integer(reference_date - x_min)%%by_num!=0){
       x_min <- x_min - 1
     }
     x_breaks <- seq(x_min, x_max, by=by_txt)
+  }
+
+  if(model_is_weekly) {
+    full_df$time = full_df$time + days(6)
+    full_df$deaths_ravg <- full_df$deaths_ravg / 7
+    full_df$deaths_upper_ravg <- full_df$deaths_upper_ravg / 7
+    full_df$deaths_lower_ravg <- full_df$deaths_lower_ravg / 7
+    x_breaks <- x_breaks + days(6)
+    reference_date <- reference_date + days(6)
   }
 
   midpoint <- (max(full_df$deaths_ravg, na.rm=TRUE) - min(full_df$deaths_ravg, na.rm=TRUE))/2 + min(full_df$deaths_ravg, na.rm=TRUE)
