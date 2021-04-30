@@ -21,15 +21,14 @@
 #' huron <- data.frame(year = 1875:1972, level = as.vector(LakeHuron))
 #' h <- ggplot(huron, aes(year))
 #' h + geom_stepribbon(aes(ymin = level - 1, ymax = level + 1), fill = "grey70") +
-#'     geom_step(aes(y = level))
+#'   geom_step(aes(y = level))
 #' h + geom_ribbon(aes(ymin = level - 1, ymax = level + 1), fill = "grey70") +
-#'     geom_line(aes(y = level))
+#'   geom_line(aes(y = level))
 #' @rdname geom_stepribbon
 #' @importFrom ggplot2 layer GeomRibbon
 #' @export
-geom_stepribbon <- function(
-  mapping = NULL, data = NULL, stat = "identity", position = "identity",
-  na.rm = FALSE, show.legend = NA, inherit.aes = TRUE, kmplot = FALSE, ...) {
+geom_stepribbon <- function(mapping = NULL, data = NULL, stat = "identity", position = "identity",
+                            na.rm = FALSE, show.legend = NA, inherit.aes = TRUE, kmplot = FALSE, ...) {
   layer(
     data = data,
     mapping = mapping,
@@ -52,9 +51,7 @@ geom_stepribbon <- function(
 #' @export
 GeomStepribbon <- ggplot2::ggproto(
   "GeomStepribbon", ggplot2::GeomRibbon,
-
   extra_params = c("na.rm", "kmplot"),
-
   draw_group = function(data, panel_scales, coord, na.rm = FALSE) {
     if (na.rm) data <- data[complete.cases(data[c("x", "ymin", "ymax")]), ]
     data <- rbind(data, data)
@@ -63,7 +60,6 @@ GeomStepribbon <- ggplot2::ggproto(
     data <- data[complete.cases(data["x"]), ]
     GeomRibbon$draw_group(data, panel_scales, coord, na.rm = FALSE)
   },
-
   setup_data = function(data, params) {
     if (params$kmplot) {
       data <- data[order(data$PANEL, data$group, data$x), ]
@@ -81,5 +77,4 @@ GeomStepribbon <- ggplot2::ggproto(
     }
     data
   }
-
 )
