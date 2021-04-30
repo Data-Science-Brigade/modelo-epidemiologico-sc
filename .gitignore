@@ -57,3 +57,5 @@ vignettes/*.pdf
 **/onset_to_death.csv
 **/deaths_unclean.csv
 **/Global_Mobility_Report.csv
+
+*.Rproj
