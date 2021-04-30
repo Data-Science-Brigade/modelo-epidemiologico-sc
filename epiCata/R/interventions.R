@@ -142,7 +142,7 @@ mobility_city_name_to_internal_city_name <- function(cities) {
   cities <- cities %>%
     str_to_lower(locale="pt-br") %>%
     str_replace_all("[áàãâä]","a") %>%
-    str_replace_all("[éèẽêë]","e") %>%
+    str_replace_all("[éèêë]","e") %>%
     str_replace_all("[íìĩîï]","i") %>%
     str_replace_all("[óòõôö]","o") %>%
     str_replace_all("[úùũûü]","u") %>%
