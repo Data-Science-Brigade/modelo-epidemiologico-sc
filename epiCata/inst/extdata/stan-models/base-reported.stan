@@ -38,8 +38,6 @@ parameters {
   real <lower=0> ifr_noise[M];
   real alpha[P];
   real alpha1[P,M];
-  real alpha_pop;
-  real alpha1_pop[M];
   
   real<lower=0> infection_overestimate[M];
 }
@@ -61,7 +59,6 @@ transformed parameters {
           for(p in 1:P) {
             linear_effect[i] -= X[m,i,p] * (alpha[p] + alpha1[p,m]);
           }
-          linear_effect[i] -= ((pop[m]-cumm_sum[i,m]) / pop[m]) * (alpha_pop + alpha1_pop[m]);
         }
         Rt[1:N0,m] = mu[m] * 2 * inv_logit(linear_effect[1:N0]);
         Rt_adj[1:N0,m] = Rt[1:N0,m];
@@ -72,7 +69,6 @@ transformed parameters {
           for(p in 1:P) {
             linear_effect[i] -= X[m,i,p] * (alpha[p] + alpha1[p,m]);
           }
-          linear_effect[i] -= ((pop[m]-cumm_sum[i,m]) / pop[m]) * (alpha_pop + alpha1_pop[m]);
           Rt[i,m] = mu[m] * 2 * inv_logit(linear_effect[i]);
 
           Rt_adj[i,m] = ((pop[m]-cumm_sum[i,m]) / pop[m]) * Rt[i,m];
@@ -95,10 +91,8 @@ model {
   kappa ~ normal(0,0.5);
   mu ~ normal(3.28, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
   alpha ~ normal(0,0.5);
-  alpha_pop ~ normal(0,0.5);
   for (i in 1:P)
     alpha1[i,] ~ normal(0,gamma);
-  alpha1_pop ~ normal(0,gamma);
   ifr_noise ~ normal(1,0.1);
   
   infection_overestimate ~ normal(11.5,2);
