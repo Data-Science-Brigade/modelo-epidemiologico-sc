@@ -16,7 +16,10 @@ get_tidy_df <- function(model_fit){
   
   tidy_model <- 
     model_fit$fit %>% recover_types(list(P=covariates, M=location_names)) %>% 
-    spread_draws(mu[M], alpha[P], alpha1[P, M], y[M], ifr_noise[M], E_deaths[N2, M], prediction[N2, M])
+    spread_draws(mu[M], alpha[P], alpha1[P, M], y[M], ifr_noise[M], E_deaths[N2, M], 
+                 prediction[N2, M])
+  
+  # , infection_overestimate[m] --> if base_reported
   
   real_deaths <- 
     enframe(model_fit$stan_list$deaths_by_location, "M", "deaths") %>% 
@@ -44,4 +47,10 @@ plot_death_vs_estimate <- function(tidy_model, location_name){
   
 }
 
-
+plot_compare_estimate <- function(tidy_model_base, tidy_model_reported){
+  df <- bind_rows(tidy_model_base %>% group_by(M, N2) %>% median_qi(estimate = mu) %>% mutate(model = "base"), 
+                  tidy_model_reported %>% group_by(M, N2) %>% median_qi(estimate = mu) %>% mutate(model = "reported")) %>%
+    to_broom_names()
+  ggplot(df, aes(y = M, x = estimate, xmin = conf.low, xmax = conf.high, color = model)) + 
+    geom_pointinterval(position = position_dodge(width = .3)) + theme_ggdist() + xlab("R0") + ylab("")
+}
