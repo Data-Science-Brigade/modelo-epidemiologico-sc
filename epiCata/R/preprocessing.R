@@ -1,3 +1,23 @@
+#' Receives data with daily granularity and 
+#' returns a list ready to be used by run_epidemiological_model (both daily and weekly alternatives)
+#'
+#' @param covid_data 
+#' @param interventions 
+#' @param onset_to_death 
+#' @param IFR 
+#' @param serial_interval 
+#' @param infection_to_onset 
+#' @param population 
+#' @param forecast 
+#' @param is_weekly 
+#' @param google_mobility_filename 
+#' @param google_mobility_window_size 
+#' @param population_filename 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
                               serial_interval, infection_to_onset, population,
                               forecast = 30, is_weekly = FALSE, google_mobility_filename,
@@ -17,10 +37,7 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
       )
     covid_data$data_ocorrencia <- ymd(covid_data$data_ocorrencia)
 
-    infection_to_onset_std_days <- infection_to_onset$avg_days[[1]] * infection_to_onset$coeff_variation[[1]]
-    infection_to_onset_std_days <- infection_to_onset_std_days / 7
     infection_to_onset$avg_days <- infection_to_onset$avg_days / 7
-    infection_to_onset$coeff_variation <- infection_to_onset_std_days / infection_to_onset$avg_days
 
     interventions <-
       interventions %>%
@@ -34,8 +51,6 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
     interventions$DATA <- ymd(interventions$DATA)
 
     onset_to_death$avg_days <- onset_to_death$avg_days / 7
-    onset_to_death$std_days <- onset_to_death$std_days / 7
-    onset_to_death$coeff_variation <- onset_to_death$std_days / onset_to_death$avg_days
 
     serial_interval_weekly_idx <- c()
     serial_interval_weekly_fit <- c()
@@ -187,7 +202,7 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   location_data <- location_data[month_before_deaths_mark:nrow(location_data), ]
 
   #### EPIDEMIC START AND POPULATION ####
-  epidemic_start <- idx_deaths_mark + 1 - month_before_deaths_mark
+  epidemic_start <- 1
   location_pop <- population[population$location_name == location_name, ]$pop
 
   #### N and N2 ####

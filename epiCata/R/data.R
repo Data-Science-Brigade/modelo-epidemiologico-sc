@@ -88,9 +88,18 @@ read_covid_data <- function(deaths_filename, population_filename, reference_date
   if (nrow(df %>% filter(is.na(data_ocorrencia), obitos > 0)) > 0) {
     stop("There is an error in the input data. Some deaths were reported without a proper date.")
   }
+  
+  df <- df %>% filter(location_name %in% allowed_locations)
 
+  first_mark_ten_deaths <- 
+    min((df %>% group_by(location_name) %>% mutate(cumsum_obitos=(cumsum(obitos) >= 10)) %>% 
+           filter(cumsum_obitos == TRUE) %>% 
+           summarise(mark_ten_deaths=min(data_ocorrencia)))$mark_ten_deaths)
+  
+  df <- df %>% filter(data_ocorrencia >= (first_mark_ten_deaths - days(start_pandemic)))
+  
   # Subtract one from reference date to start predicting from it
-  all_dates <- seq(min(df$data_ocorrencia, na.rm = T) - days(start_pandemic), ymd(reference_date) - days(1), by = "1 day")
+  all_dates <- seq(first_mark_ten_deaths - days(start_pandemic), ymd(reference_date) - days(1), by = "1 day")
   all_dates_df <- expand.grid(unique(df$location_name), all_dates)
   colnames(all_dates_df) <- c("location_name", "data_ocorrencia")
   all_dates_df <- all_dates_df %>% arrange(location_name, data_ocorrencia)
@@ -101,7 +110,7 @@ read_covid_data <- function(deaths_filename, population_filename, reference_date
       obitos = ifelse(is.na(obitos), 0, obitos)
     )
 
-  df <- df %>% filter(location_name %in% allowed_locations)
+  
 
   # if(any(df$data_ocorrencia > (reference_date - days(1)))){
   #  df[which(df$data_ocorrencia > (reference_date - days(1))), "data_ocorrencia"] <- reference_date - days(1)

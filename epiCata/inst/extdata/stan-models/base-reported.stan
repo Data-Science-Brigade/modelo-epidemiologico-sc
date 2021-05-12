@@ -8,7 +8,6 @@ data {
   int deaths[N2, M]; // reported deaths -- the rows with i > N contain -1 and should be ignored
   matrix[N2, M] f; // h * s
   matrix[N2, P] X[M]; // features matrix
-  int EpidemicStart[M];
   real pop[M];
   real SI[N2]; // fixed pre-calculated SI using emprical data from Neil
 }
@@ -36,13 +35,14 @@ parameters {
   real<lower=0> phi;
   real<lower=0> tau;
   real <lower=0> ifr_noise[M];
-  real alpha[P];
-  real alpha1[P,M];
+  real <lower=0> alpha_hier[P];
+  real <lower=0> alpha1[P,M];
   
-  real<lower=0> infection_overestimate[M];
+  real<lower=1> infection_overestimate[M];
 }
 
 transformed parameters {
+    vector[P] alpha;
     matrix[N2, M] prediction = rep_matrix(0,N2,M);
     matrix[N2, M] E_deaths  = rep_matrix(0,N2,M);
     matrix[N2, M] Rt = rep_matrix(0,N2,M);
@@ -51,16 +51,16 @@ transformed parameters {
     {
       matrix[N2,M] cumm_sum = rep_matrix(0,N2,M);
       vector[N2] linear_effect;
+      for(i in 1:P){
+        alpha[i] = alpha_hier[i] - ( log(1.05) / P );
+      }
+      
       for (m in 1:M){
         linear_effect = rep_vector(0,N2);
-        prediction[1:N0,m] = rep_vector(y[m],N0); // learn the number of cases in the first N0 days
+        prediction[1:N0,m] = rep_vector(7*y[m],N0); // learn the number of cases in the first N0 days
         cumm_sum[2:N0,m] = cumulative_sum(prediction[2:N0,m]);
-        for (i in (N0+1):N2) {
-          for(p in 1:P) {
-            linear_effect[i] -= X[m,i,p] * (alpha[p] + alpha1[p,m]);
-          }
-        }
-        Rt[1:N0,m] = mu[m] * 2 * inv_logit(linear_effect[1:N0]);
+
+        Rt[1:N0,m] = rep_vector(mu[m], N0);
         Rt_adj[1:N0,m] = Rt[1:N0,m];
         for (i in (N0+1):N2) {
           real convolution = dot_product(sub_col(prediction, 1, m, i-1), tail(SI_rev, i-1));
@@ -69,7 +69,7 @@ transformed parameters {
           for(p in 1:P) {
             linear_effect[i] -= X[m,i,p] * (alpha[p] + alpha1[p,m]);
           }
-          Rt[i,m] = mu[m] * 2 * inv_logit(linear_effect[i]);
+          Rt[i,m] = mu[m] * 2 * inv_logit(linear_effect[i]); //If we use exp(), STAN can't find any samples
 
           Rt_adj[i,m] = ((pop[m]-cumm_sum[i,m]) / pop[m]) * Rt[i,m];
           prediction[i, m] = Rt_adj[i,m] * convolution;
@@ -87,19 +87,22 @@ model {
       y[m] ~ exponential(1/tau);
   }
   gamma ~ normal(0,.2);
-  phi ~ normal(0,5);
+  phi ~ normal(0,2);
   kappa ~ normal(0,0.5);
   mu ~ normal(3.28, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
-  alpha ~ normal(0,0.5);
-  for (i in 1:P)
+  
+  for (i in 1:P){
+    alpha_hier[i] ~ normal(1.0/P, P); // Mean = 1/6
     alpha1[i,] ~ normal(0,gamma);
+  }
+
   ifr_noise ~ normal(1,0.1);
   
-  infection_overestimate ~ normal(11.5,2);
+  infection_overestimate ~ normal(2.5,1);
   
   for(m in 1:M){
-    cases[EpidemicStart[m]:N[m], m] ~ neg_binomial_2(prediction[EpidemicStart[m]:N[m], m] / infection_overestimate[m], phi);
-    deaths[EpidemicStart[m]:N[m], m] ~ neg_binomial_2(E_deaths[EpidemicStart[m]:N[m], m], phi);
+    cases[(N0+1):N[m], m] ~ neg_binomial_2(prediction[N0:(N[m]-1), m] / infection_overestimate[m], phi);
+    deaths[1:N[m], m] ~ neg_binomial_2(E_deaths[1:N[m], m], phi);
    }
 }
 

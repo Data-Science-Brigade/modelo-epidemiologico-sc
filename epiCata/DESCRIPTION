@@ -1,7 +1,7 @@
 Package: epiCata
 Type: Package
 Title: Epidemiological Model adjusted to the state of Santa Catarina (Brazil) and its macrorregions
-Version: 1.1.0
+Version: 1.2.0
 Author: Jonathan Cardoso-Silva (Data Science Brigade), Pedro Henrique da Costa Avelar (Data Science Brigade)
 Maintainer: Jonathan Cardoso-Silva (Data Science Brigade) <jon@dsbrigade.com>
 Description: More about what it does (maybe more than one line)
