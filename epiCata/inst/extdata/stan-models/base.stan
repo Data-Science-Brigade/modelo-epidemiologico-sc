@@ -8,7 +8,6 @@ data {
   int deaths[N2, M]; // reported deaths -- the rows with i > N contain -1 and should be ignored
   matrix[N2, M] f; // h * s
   matrix[N2, P] X[M]; // features matrix
-  int EpidemicStart[M];
   real pop[M];
   real SI[N2]; // fixed pre-calculated SI using emprical data from Neil
 }
@@ -51,14 +50,14 @@ transformed parameters {
       vector[N2] linear_effect;
       for (m in 1:M){
         linear_effect = rep_vector(0,N2);
-        prediction[1:N0,m] = rep_vector(y[m],N0); // learn the number of cases in the first N0 days
+        prediction[1:N0,m] = rep_vector(7*y[m],N0); // learn the number of cases in the first N0 days
         cumm_sum[2:N0,m] = cumulative_sum(prediction[2:N0,m]);
 
         for(p in 1:P) {
           linear_effect -= X[m,,p] * (alpha[p] + alpha1[p,m]);
         }
 
-        Rt[,m] = mu[m] * 2 * inv_logit(linear_effect);
+        Rt[,m] = rep_vector(mu[m], N0); //* 2 * inv_logit(linear_effect);
         Rt_adj[1:N0,m] = Rt[1:N0,m];
         for (i in (N0+1):N2) {
           real convolution = dot_product(sub_col(prediction, 1, m, i-1), tail(SI_rev, i-1));
@@ -76,18 +75,18 @@ transformed parameters {
 model {
   tau ~ exponential(0.03);
   for (m in 1:M){
-      y[m] ~ exponential(1/tau);
+      y[m] ~ exponential(1/tau); # The initial seed
   }
   gamma ~ normal(0,.2);
   phi ~ normal(0,5);
   kappa ~ normal(0,0.5);
-  mu ~ normal(3.28, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
+  mu ~ normal(2, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
   alpha ~ normal(0,0.5);
   for (i in 1:P)
     alpha1[i,] ~ normal(0,gamma);
   ifr_noise ~ normal(1,0.1);
   for(m in 1:M){
-    deaths[EpidemicStart[m]:N[m], m] ~ neg_binomial_2(E_deaths[EpidemicStart[m]:N[m], m], phi);
+    deaths[1:N[m], m] ~ neg_binomial_2(E_deaths[1:N[m], m], phi);
    }
 }
 
