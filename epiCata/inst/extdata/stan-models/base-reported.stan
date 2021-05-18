@@ -57,7 +57,7 @@ transformed parameters {
       
       for (m in 1:M){
         linear_effect = rep_vector(0,N2);
-        prediction[1:N0,m] = rep_vector(7*y[m],N0); // learn the number of cases in the first N0 days
+        prediction[1:N0,m] = rep_vector(y[m],N0); // learn the number of cases in the first N0 days
         cumm_sum[2:N0,m] = cumulative_sum(prediction[2:N0,m]);
 
         Rt[1:N0,m] = rep_vector(mu[m], N0);
