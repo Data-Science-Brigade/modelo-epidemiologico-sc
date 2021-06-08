@@ -24,7 +24,6 @@ df["data_ocorrencia"] = df["data_ocorrencia"].str.replace("2222-","2020-")
 
 df["data_ocorrencia"] = df["data_ocorrencia"].str.replace("2021-10","2020-10")
 df["data_ocorrencia"] = df["data_ocorrencia"].str.replace("2021-11","2020-11")
-df["data_ocorrencia"] = df["data_ocorrencia"].str.replace("2021-05-30","2020-05-30")
 df["data_ocorrencia"] = df["data_ocorrencia"].str.replace("2121-","2021-")
 
 df.loc[df["data_ocorrencia"].str.startswith("201"),"data_ocorrencia"] = "2020-01-01"
