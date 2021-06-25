@@ -24,7 +24,7 @@ Imports:
   usethis (>= 1.6.3),
   slider (>= 0.2.1)
 Depends: 
-    R (== 3.6.3)
+    R (>= 3.6.3)
 Remotes:
   local::../epiCataPlot
 RoxygenNote: 7.1.0
