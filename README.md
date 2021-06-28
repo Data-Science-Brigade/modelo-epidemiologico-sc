@@ -2,14 +2,19 @@
 
 Pacote R baseado no modelo epidemiológico adaptado para a realidade do estado de Santa Catarina.
 
-Para saber mais detalhes ou caso reutilize esse código, veja e cite nosso artigo (submetido para revista):
+Para saber mais detalhes ou caso reutilize esse código, veja e cite nosso artigo:
 
-> Avelar, P. H. da C., Lamb, L. C., Tsoka, S., & Cardoso-Silva, J. (2021). Weekly Bayesian modelling strategy to predict deaths by COVID-19: a model and case study for the state of Santa Catarina, Brazil. Retrieved from http://arxiv.org/abs/2104.01133
+> Avelar, P. H. da C., Lamb, L. C., Tsoka, S., & Cardoso-Silva, J. (2021). Weekly Bayesian modelling strategy to predict deaths by COVID-19: a model and case study for the state of Santa Catarina, Brazil. (preprint) http://arxiv.org/abs/2104.01133
 
 Os relatórios dos nossos estudos com o modelo são divulgados semanalmente pelo Social Good Brasil no link: https://socialgoodbrasil.org.br/modelo-epidemiologico/
 
 Para entender como pacotes R funcionam, leia o livro on-line gratuito: http://r-pkgs.had.co.nz/
 
+## Tutoriais
+
+- [00 - Setup do Ambiente](tutoriais/PT-BR/Tutorial00.html)
+- [01 - Preprocessamento](tutoriais/PT-BR/Tutorial01.html)
+- [02 - Modelo base e uma única localização](tutoriais/PT-BR/Tutorial02.html)
 
 ## Como compilar
 

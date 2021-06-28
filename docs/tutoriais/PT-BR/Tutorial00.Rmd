@@ -1,0 +1,70 @@
+---
+title: 'Tutorial - 00: Setup'
+author: '@jonjoncardoso'
+date: '2021-06-17'
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+code_folding: show
+---
+
+# Software necessário
+
+Para rodar esse e os demais notebooks com mais facilidade, instale o [R](https://cran.r-project.org/) e [RStudio Desktop IDE (Free)](https://www.rstudio.com/products/rstudio/download/)^[O RStudio não é estritamente necessário, mas certamente é a forma mais amigável de rodar o código pela primeira vez.].
+
+O código foi testado no R versão v3.6.3 no Windows e Linux Ubuntu 18.04. Teoricamente, não há nenhum impedimento em utilizar uma versão mais recente do R (v4.+) porém, caso você encontre algum erro muito aleatório por conta das dependências dos pacotes desse projeto ([xkcd relevante](https://xkcd.com/2347/)), tente utilizar o R v3.6+.
+
+# Download
+
+Clone o projeto:
+
+```{bash eval=FALSE}
+git clone git@github.com:Data-Science-Brigade/modelo-epidemiologico-sc.git
+```
+
+É novo no Git? Leia a [documentação do Github](https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository-from-github/cloning-a-repository) sobre como clonar o repositório. Ou ainda, baixe o ZIP do projeto para algum diretório desejado e descompacte.
+
+# Dependências
+
+Dentro do console do R, instale o `devtools` e o `usethis`:
+
+```{r eval=FALSE, message=FALSE}
+install.packages("devtools")
+install.packages("usethis")
+```
+
+Com essas duas bibliotecas instaladas, fica mais fácil instalar todas as demais dependências do projeto:
+
+```{r eval=FALSE, message=FALSE}
+source("install_dependencies.R")
+```
+
+Caso queira, após instalar os pacotes optparse, devtools e usethis, pode-se rodar o script `install_dependencies.R` com o comando do terminal `R -f install_dependencies.R`, que ele todos os pacotes acima serão instalados na versão especificada.
+
+# Compilando o projeto todo
+
+O projeto está dividido em dois pacotes: 
+
+- **epiCata**: pre-processamento e o modelo propriamente dito
+- **epiCataPlot**: funções para plotar gráficos típicos do projeto
+
+O jeito mais fácil de compilar o projeto é [usar o RStudio](https://support.rstudio.com/hc/en-us/articles/200486508-Building-Testing-and-Distributing-Packages). Nesse caso, abra o projeto (diretório `epiCata`) e faça um build do pacote com o atalho `Ctrl + Shift + B`.
+
+Caso queira rodar na linha de comando, abra um terminal do `R` dentro das pastas `epiCataPlot` e `epiCata` e, com o pacote `devtools` instalado, digite:
+
+```{r eval=FALSE, message=FALSE}
+devtools::build()
+# O upgrade aqui está "never" para não sobrescrever as versões já instaladas dos pacotes
+devtools::install(upgrade = "never") 
+```
+
+Assim, os pacotes `epiCataPlot` e `epiCata` estarão disponíveis:
+
+```{r eval=FALSE, message=FALSE}
+library(epiCataPlot)
+library(epiCata)
+```
+
+E é isso!
