@@ -449,7 +449,11 @@ model {
 }
 ```
 
-Após definir o modelo STAN e salvar na variável `simple_model`, podemos então fazer o sampling:
+Como aqui estou usando o RNotebook, o bloco de código acima vai ser automaticamente executado e carregado no rstan. Isso vai gerar um objeto rstan chamado `simple_model`.
+
+Caso esteja rodando o conteúdo na mão, salve o modelo stan em algum arquivo de texto, por exemplo `simple_model.stan` e então o leia para a variável `simple_model <- rstan::stan_model("simple_model.stan")`.
+
+De qualquer forma, com o objeto `simple_model`, é possível fazer o sampling. Antes disso, vamos só configurar o stan para re-compilar o modelo sempre, por padrão, e para usar os múltiplos cores da máquina:
 
 ```{r eval=TRUE, message=FALSE, warning=FALSE}
 require(rstan)
