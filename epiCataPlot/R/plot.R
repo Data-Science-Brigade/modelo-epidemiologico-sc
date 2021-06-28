@@ -161,7 +161,7 @@ plot_graph_A <- function(location_name, x_breaks, dfs, model_is_weekly = FALSE) 
   require(scales)
   require(lubridate)
   model_is_weekly <- ifelse(is.null(model_is_weekly), FALSE, model_is_weekly)
-
+  
   if (model_is_weekly) {
     dfs$data_location$time <- dfs$data_location$time + days(6)
     dfs$data_location_forecast$time <- dfs$data_location_forecast$time + days(6)
@@ -187,6 +187,10 @@ plot_graph_A <- function(location_name, x_breaks, dfs, model_is_weekly = FALSE) 
   data_cases <- rbind(data_cases_95, data_cases_50)
   levels(data_cases$key) <- c("ninetyfive", "fifty")
 
+  # Some initial time points are not modelled on STAN. 
+  # In these cases, we only want to show data, not non-existing stan estimates on the plot
+  data_cases <- data_cases %>% filter(cases_min != 0 & cases_max != 0)
+  
   cases_legend <- data.frame(
     text = c("Confirmados: ", "Estimado (min): ", "Estimado (max): "),
     x = max(x_breaks),
@@ -291,6 +295,10 @@ plot_graph_B <- function(location_name, x_breaks, dfs, is_cumulative = FALSE, mo
   data_deaths <- rbind(data_deaths_95, data_deaths_50)
   levels(data_deaths$key) <- c("ninetyfive", "fifty")
 
+  # Some initial time points are not modelled on STAN. 
+  # In these cases, we only want to show data, not non-existing stan estimates on the plot
+  data_deaths <- data_deaths %>% filter(death_min != 0 & death_max != 0)
+  
   if (is_cumulative) {
     data_deaths <- data_deaths %>%
       filter(key == "fifty") %>%
@@ -383,6 +391,10 @@ plot_graph_C <- function(location_name, x_breaks, dfs, use_stepribbon = FALSE, m
   data_rt <- rbind(data_rt_95, data_rt_50) %>% filter(x_min_date <= time, time <= x_max_date)
   levels(data_rt$key) <- c("ninetyfive", "fifth")
 
+  # Some initial time points are not modelled on STAN. 
+  # In these cases, we only want to show data, not non-existing stan estimates on the plot
+  data_rt <- data_rt %>% filter(rt_min != 0 & rt_max != 0)
+  
   max_rt <- ceiling(max(data_rt$rt_max))
 
   original_y_breaks <- seq(1, ceiling(max_rt))

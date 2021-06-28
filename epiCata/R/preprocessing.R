@@ -70,14 +70,19 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
   x1 <- EnvStats::rgammaAlt(1e6, infection_to_onset$avg_days, infection_to_onset$coeff_variation) # infection-to-onset distribution
   x2 <- EnvStats::rgammaAlt(1e6, onset_to_death$avg_days, onset_to_death$coeff_variation) # onset-to-death distribution
   ecdf.saved <- ecdf(x1 + x2)
-
-  # Add a padding to the serial interval if it doesn't contain enough rows
-  padded_serial_interval <- get_padded_serial_interval(serial_interval, N2)
+  
+  gen_serial_interval <- ecdf(EnvStats::rgammaAlt(1e6, 6.5, 0.62)) # serial-interval distribution
+  SI <- rep(0, N2) # f is the probability of dying on day i given infection
+  SI[1] <- (gen_serial_interval(1.5) - gen_serial_interval(0))
+  for (i in 2:N2) {
+    SI[i] <- (gen_serial_interval(i + .5) - gen_serial_interval(i - .5))
+  }
 
   #### INTERVENTIONS ####
 
   # A join with all_dates_df will ensure that all dates are represented
-  all_dates <- seq(min(covid_data$data_ocorrencia), max(covid_data$data_ocorrencia), by = ifelse(is_weekly, "1 week", "1 day"))
+  all_dates <- seq(min(covid_data$data_ocorrencia), max(covid_data$data_ocorrencia), 
+                   by = ifelse(is_weekly, "1 week", "1 day"))
   all_dates_df <- expand.grid(sort(unique(interventions$AREA)), all_dates)
   colnames(all_dates_df) <- c("AREA", "DATA")
   common_interventions <- interventions %>%
@@ -95,10 +100,9 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
   reported_cases <- list()
   deaths_by_location <- list()
   stan_data <- list(
-    M = length(available_locations), N = NULL, deaths = NULL, f = NULL, N0 = ifelse(is_weekly, 1, 6), # N0 = 6 to make it consistent with Rayleigh
-    cases = NULL, SI = padded_serial_interval$fit[1:N2], features = NULL,
-    EpidemicStart = NULL, pop = NULL,
-    N2 = N2, x = 1:N2, P = n_covariates
+    M = length(available_locations), N = NULL, deaths = NULL, f = NULL, N0 = ifelse(is_weekly, 3, 6), # N0 = 6 to make it consistent with Rayleigh
+    cases = NULL, SI = SI, features = NULL,
+    pop = NULL, N2 = N2, x = 1:N2, P = n_covariates
   )
 
   # Covariates array
@@ -126,7 +130,6 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
     reported_cases[[location_name]] <- result_list$reported_cases
     deaths_by_location[[location_name]] <- result_list$deaths_by_location
 
-    stan_data$EpidemicStart <- c(stan_data$EpidemicStart, result_list$epidemic_start)
     stan_data$pop <- c(stan_data$pop, result_list$location_pop)
     stan_data$N <- c(stan_data$N, result_list$N)
     stan_data$f <- cbind(stan_data$f, result_list$f)
@@ -144,12 +147,10 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
     cat(sprintf("  > %s - %s\n", min(result_list$dates), max(result_list$dates)))
   }
 
-  if (length(stan_data$EpidemicStart) == 1) {
-    stop("Model does not support only one region")
-    # FIXME: Bug with single location, the fix below does not work
-    dim(stan_data$EpidemicStart) <- 1
+  if(typeof(stan_data$pop) == "integer"){
+    stan_data$pop <- as.array(stan_data$pop)
   }
-
+  
   return(list(
     "stan_data" = stan_data,
     "dates" = dates,
@@ -161,7 +162,9 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
   ))
 }
 
-get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.saved, covid_data, common_interventions, is_weekly = FALSE, mobility, google_mobility_window_size, pop_df) {
+get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.saved, 
+                                       covid_data, common_interventions, is_weekly = FALSE, mobility, 
+                                       google_mobility_window_size, pop_df) {
 
   #### FILTER RELEVANT INFORMATION ####
   cat(sprintf("\n\nParsing data for location: %s\n", location_name))
@@ -187,7 +190,6 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   location_data <- location_data[month_before_deaths_mark:nrow(location_data), ]
 
   #### EPIDEMIC START AND POPULATION ####
-  epidemic_start <- idx_deaths_mark + 1 - month_before_deaths_mark
   location_pop <- population[population$location_name == location_name, ]$pop
 
   #### N and N2 ####
@@ -250,7 +252,7 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
   cases <- c(as.vector(as.numeric(location_data$casos)), rep(-1, location_forecast))
 
   return(list(
-    epidemic_start = epidemic_start, location_pop = location_pop, N = N, N2 = N2, f = f,
+    location_pop = location_pop, N = N, N2 = N2, f = f,
     deaths = deaths, cases = cases, x = 1:N2,
     location_covariates = location_covariates,
     dates = location_data$data_ocorrencia,

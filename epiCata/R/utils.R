@@ -216,6 +216,10 @@ get_ranges_counting_missing_data <- function(model_output, forecast) {
   rr$min_missing_date <- min(as_date(model_output$covid_data$data_ocorrencia))
   rr$min_date <- min(reduce(model_output$stan_list$dates, min))
   rr$max_date <- reduce(model_output$stan_list$dates, max)
+  if(length(model_output$stan_list$available_locations) == 1){
+    rr$max_date <- max(rr$max_date) 
+  }
+
   rr$max_forecast_date <- rr$max_date + rr$forecast
   if (rr$is_weekly) {
     rr$min_missing_date <- ymd(cut(rr$min_missing_date, "week", start.on.monday = TRUE))
@@ -470,7 +474,7 @@ get_merged_forecast_dfs_on_model_data <- function(location_names, model_output, 
     # (UNUSED) Unweighted
     # rt_samples[,agg_idx] <- rt_samples[,agg_idx] + model_output$out$Rt[,loc_idx,i]
     # Weighted by pop
-    rt_samples[, agg_idx] <- rt_samples[, agg_idx] + model_output$out$Rt[, loc_idx, i] * model_output$stan_list$stan_data$pop[i]
+    rt_samples[, agg_idx] <- rt_samples[, agg_idx] + model_output$out$Rt_adj[, loc_idx, i] * model_output$stan_list$stan_data$pop[i]
 
     # (UNUSED) Unweighted
     # rt_samples_n[,agg_idx] <- rt_samples_n[,agg_idx] + 1
