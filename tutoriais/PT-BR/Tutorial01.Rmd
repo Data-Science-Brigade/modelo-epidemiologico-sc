@@ -1,0 +1,323 @@
+---
+title: 'Tutorial - 01: Pre-processamento'
+author: '@jonjoncardoso'
+date: '2021-06-17'
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: true
+code_folding: show
+---
+
+# Dados necessários
+
+Antes de qualquer coisa, é preciso adquirir dados sobre a COVID-19 para o estado de Santa Catarina. A maioria dos arquivos necessários já está disponível no repositório do projeto, a única exceção é o arquivo de óbitos que deverá ser baixado e atualizado sempre que for rodar o modelo. Descrições e instruções de como obter esses dados são descritas abaixo:
+
+## O arquivo **`deaths.csv`**
+
+
+**Esse arquivo não é disponibilizado no repositório do projeto, é preciso baixá-lo de alguma das fontes de dados abaixo.**
+
+Este arquivo representa o número confirmado de casos e óbitos diários por COVID-19 em cada cidade mapeada e deve seguir o seguinte formato:
+
+```{bash eval=FALSE}
+nom_regional,cod_municipio_ibge,nom_municipio,data_ocorrencia,casos,obitos
+PLANALTO NORTE E NORDESTE,4218301,TRES BARRAS,2020-01-01,0,0
+```
+
+Onde:
+
+- **nom_regional**: nome da macrorregião ou regional de saúde ao qual o município pertence
+- **cod_municipio_ibge**: código do município no IBGE
+- **nom_municipio**: nome do município
+- **data_ocorrencia**: data na qual o teste RT-PCR de COVID-19 foi coletado
+- **casos**: número de casos confirmados que foram coletados nesta data
+- **obitos**: número de óbitos confirmados que foram coletados nesta data
+
+Obs: caso queira rodar o modelo para outra localidade de interesse, por exemplo para outro estado ou outras macro- micro-regiões, você pode gerar um arquivo que se conforme ao padrão definido acima ou fazer as devidas alterações no código fonte de pre-processamento.
+
+### Fontes de Dados
+
+
+#### Dados Públicos
+
+Há um dataset público e disponível para download no Portal de Dados Abertos de Santa Catarina no link: http://dados.sc.gov.br/dataset/covid-19-dados-anonimizados-de-casos-confirmados.
+
+Caso opte por utilizar esses dados, será preciso adequar para o formato CSV descrito no começo dessa seção.
+
+#### Plataforma Boa Vista
+
+_(Equipe DSB)_: caso você tenha acesso à Plataforma BoaVista, há um script SQL interno que já retorna os dados no formato acima Por questões de segurança, solicite  o acesso ao script para os gestores do projeto.
+
+Após rodar o script e fazer o download dos dados, é preciso conferir se os dados estão limpos o suficiente. A m bem comum haver erros de digitação, especialmente nas datas, que podem atrapalhar a execução do modelo epidemiológico.
+
+**Para facilitar esse processo, você pode utilizar o script `clean_deaths.py` para fazer um "limpa" dos dados.** Para isso, siga os passos abaixo:
+
+1. Renomeie o arquivo baixado do BoaVista para `deaths_unclean.csv`
+2. Rode o script Python (exige pandas instalado):
+
+```{bash eval=FALSE}
+python3 clean_deaths.py
+```
+
+Esse script irá atribuir corretamente cada cidade a sua regional de saúde correspondente, corrigirá alguns erros dos erros mais comuns na digitação do ano (por exemplo: 2002, 2022, 2200, 2202, 2220, 2222) e atribuirá a ocorrência de datas fora do período modelado como 201X, 200X e 199X para a data de 2020-01-01.
+
+## O arquivo **`onset_to_death.csv`**
+
+Um dos parâmetros importantes para o modelo é a curva de _onset-to-death_ dos pacientes que vieram a óbito por COVID-19. Essa curva indica o tempo, em dias, desde o aparecimento dos primeiros sintomas até a data do óbito e é modelada internamente por uma distribuição gamma parametrizada pela média e coeficiente de variação:
+
+
+$$
+\text{onset-to-death} \sim  \Gamma(20.37, 0.768)
+$$
+
+Para ter uma ideia de como essa curva se parece, o código abaixo simula uma amostra aleatória da distribuição acima:
+
+```{r eval=TRUE, message=FALSE}
+require(EnvStats)
+require(ggplot2)
+
+ggplot(data.frame(x=EnvStats::rgammaAlt(1e6, mean=20.37, cv=0.768)), 
+       aes(x=x)) + 
+  geom_density(size=1.5, color="#1f497d") + 
+  theme_minimal() + 
+  xlab("Período (dias)") + ylab("Densidade") + 
+  ggtitle("Distribuição \u0393(20.37, 0.768) que representa o período de onset-to-death") + 
+  scale_x_continuous(breaks=seq(0, 200, 25))
+```
+
+Já existe um arquivo `onset_to_death.csv` no repositório com os parâmetros dessa distribuição então não é _estritamente necessário_ re-estimar esses parâmetros toda vez que for rodar o modelo. 
+
+Caso queira estimar os valores estimados de média, desvio padrão e coeficiente de variação a partir dos dados, confira e rode o script `onset_to_death.R`. _(Equipe DSB)_: peça ao gestor do seu projeto acesso ao script que baixa os dados da Plataforma BoaVista no formato necessário para rodar esse script. 
+
+## O arquivo `pop_and_regions.csv`
+
+Um outro parâmetro importante para o modelo epidemiológico é a quantidade de habitantes de cada localidade mapeada.
+O objetivo é modelar a dinâmica de transmissão do vírus dentro das 7 macrorregiões ou das 16 regionais de saúde do estado de Santa Catarina e portanto precisamos ser capazes de agrupar os dados conforme for necessário.
+
+O arquivo `pop_and_regions.csv` já tem todos os totais relevantes para SC. Essas quantias foram obtidas pela Plataforma Boa Vista mas também poderiam ser compiladas a partir do site do IBGE. Exemplo:
+
+```{bash eval=FALSE}
+cod_municipio_ibge,nom_municipio,nom_regiaosaude,nom_regional,qtd_populacao_estimada
+420005,ABDON BATISTA,MEIO OESTE,MEIO OESTE E SERRA CATARINENSE,2563
+420010,ABELARDO LUZ,XANXERE,GRANDE OESTE,17904
+```
+
+## O Google Mobility
+
+O arquivo com os dados de mobilidade disponibilizado pelo Google durante a pandemia, `Global_Mobility_Report.csv`. Para baixar esse arquivo basta rodar o script `get_google_mobility.sh` se estiver num sistema linux, tendo o programa `wget` instalado.
+
+Caso se queira, pode-se baixar o mesmo arquivo acessando o link (https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv).
+
+O arquivo tem o formato abaixo:
+
+```
+country_region_code,country_region,sub_region_1,sub_region_2,metro_area,iso_3166_2_code,census_fips_code,place_id,date,retail_and_recreation_percent_change_from_baseline,grocery_and_pharmacy_percent_change_from_baseline,parks_percent_change_from_baseline,transit_stations_percent_change_from_baseline,workplaces_percent_change_from_baseline,residential_percent_change_from_baseline
+BR,Brazil,,,,,,ChIJzyjM68dZnAARYz4p8gYVWik,2020-02-15,5,4,-5,8,6,0
+```
+
+Antes de atualizar os dados do Google Mobility, apague o arquivo `Global_Mobility_Report.csv` anterior. O script não irá sobrescrever o arquivo.
+
+
+# Rodando o modelo direto
+
+Se os arquivos descritos acima estiverem na raiz do projeto e se você já tiver compilado a biblioteca `epiCata` conforme as instruções do tutorial anterior, você pode rodar o modelo direto do terminal e aguardar os resultados.
+
+Para isso, rode os comandos do script apropriado:
+- **`run_regions.R`** para rodar o modelo para as 7 macrorregiões de saúde do estado de Santa Catarina
+- **`run_health_regions.R`** para rodar o modelo para regionais de saúde do estado de Santa Catarina
+
+Uma lista completa das opções que se pode passar para os scripts para rodar o modelo pode ser vista usando os comandos:
+
+```{bash eval=FALSE}
+Rscript run_regions.R --help
+```
+
+ou 
+
+```{bash eval=FALSE}
+Rscript run_health_regions.R --help
+```
+
+As principais opções são:
+
+* `-m`: O modo com o qual o modelo será rodado. O padrão é DEBUG, e deve ser alterado para DEVELOP ou para FULL para usar alguns valores pré-definidos, ou então personalizar o valor com as opções abaixo.
+* `-k`: Caso seja um valor maior do que 1, os valores usados do google mobility serão primeiro passados por um filtro de média móvel com o número de dias indicados. Por exemplo, com `-k 7` se usaria uma média móvel de 7 dias. Note que para o comportamento esperado acontecer, não podem haver dias faltantes.
+* `-i`: O número de iterações (totais) que o modelo será amostrado por. Por exemplo, com `-i 3000` o modelo terá 3000 amostragens feitas, tanto de aquecimento quanto amostragens "reais". Esse valor supercede o valor pré-definido pelo modo do modelo.
+* `-w`: O número de iterações (dentro das iterações totais) que serão usadas para fins de "aquecimento" do modelo (e não deveriam ser usadas como parte dos resultados. Deve ser menor que o valor passado para `-i` ou o valor padrão definido pelo modo. Por exemplo `-w 2400` faz com que 2400 das iterações rodadas sejam iterações de warmup.
+* `-c`: O número de correntes que se utilizará para fazer o sampling. Se recomenda usar mais do que uma para verificar a convergência. Por exemplo, `-c 4` indica que serão rodadas 4 correntes.
+* `-t`: A profundidade máxima da árvore de busca do MCMC, por exemplo `-t 8` indica que a profundidade máxima será 8. Valores muito altos podem fazer com que o modelo demore para rodar e valores muito baixos podem piorar a performance do modelo. Se possível, evite usar valores abaixo de 8.
+* `-r`: A data de referência, no formato "YYYY-MM-DD". Essa data normalmente deve ser 1 dia após a data que se tem dados disponíveis. Por exemplo, para rodar para 10 de agosto de 2020, se usaria `-r "2020-08-10"`
+* `-e`: O caminho de modelo anterior para se inicializar os priors do modelo com os valores do modelo anterior. Por exemplo `~/results/2020_08_10/2020_08_10_modelo.Rdata` inicializaria o modelo com o salvo em `2020_08_10_modelo.Rdata`
+* `-y`: Se o modelo deve ser rodado de maneira semanal ou não. `-y TRUE` indica que o modelo deve ter os dados agregados de maneira semanal. **ATENÇÃO**: Se usado dessa forma os dados devem terminar sempre no domingo, e a data de referência deve ser sempre uma segunda-feira.
+* `-v`: Se deve se rodar o modelo de maneira verbosa ou não. `-v TRUE` indica que o modelo deve ser rodado de maneira verbosa.
+
+Por exemplo, para rodar o modelo para a data de 10 de agosto de 2020, com alguns padrões do setting DEVELOP, mas com 1200 iterações, das quais 600 são de warmup, com 4 correntes, com a profundidade da árvores máxima setada em 8 e fazendo a média móvel de 7 dias do google mobility, deve se rodar o seguinte comando:
+
+```{bash eval=FALSE}
+Rscript run_health_regions.R -m DEVELOP -k 7 -i 1200 -w 600 -c 4 -t 8 -r "2020-08-10"
+```
+
+# Pre-processamento
+
+Caso o objetivo seja alterar o pre-processamento ou estudar alterações no modelo epidemiológico de forma mais eficiente, siga os passos abaixo:
+
+## Configurações
+
+- Importe as bibliotecas necessárias:
+
+```{r eval=TRUE, message=FALSE}
+library(epiCata)
+library(epiCataPlot)
+
+library(lubridate)
+library(tidyverse)
+```
+
+- Configure os parâmetros desejados:
+
+```{r eval=TRUE, message=FALSE}
+
+## Localidades que serão utilizadas: MAC para macrorregiões e RSA para regionais de saúde
+macroregions <- c("SC_MAC_FOZ_DO_RIO_ITAJAI",
+                  "SC_MAC_PLANALTO_NORTE_E_NORDESTE",
+                  "SC_MAC_GRANDE_OESTE",
+                  "SC_MAC_GRANDE_FLORIANOPOLIS",
+                  "SC_MAC_SUL",
+                  "SC_MAC_ALTO_VALE_DO_ITAJAI",
+                  "SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE")
+
+regions <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
+             "SC_RSA_ALTO_VALE_DO_ITAJAI",
+             "SC_RSA_ALTO_VALE_DO_RIO_DO_PEIXE",
+             "SC_RSA_CARBONIFERA",
+             "SC_RSA_EXTREMO_OESTE",
+             "SC_RSA_EXTREMO_SUL_CATARINENSE",
+             "SC_RSA_FOZ_DO_RIO_ITAJAI",
+             "SC_RSA_GRANDE_FLORIANOPOLIS",
+             "SC_RSA_LAGUNA",
+             "SC_RSA_MEDIO_VALE_DO_ITAJAI",
+             "SC_RSA_MEIO_OESTE",
+             "SC_RSA_NORDESTE",
+             "SC_RSA_OESTE",
+             "SC_RSA_PLANALTO_NORTE",
+             "SC_RSA_SERRA_CATARINENSE",
+             "SC_RSA_XANXERE")
+
+my_local_data_path <- "../../"
+
+#Parâmetros
+opt <- 
+  list(
+    # Data d em que o modelo será rodado. Nesse caso, o código irá usar dados de até o dia d-1
+    reference_date = ymd("2021-06-07"),
+    
+    # Localidades a serem modeladas
+    allowed_locations = macroregions,
+    
+    # Ao final será gerado um agregado, combinando as projeções a nível de estado
+    aggregate_name = "SC_ESTADO", 
+    
+    # Dados necessários
+    deaths = file.path(my_local_data_path, "deaths.csv"),
+    population = file.path(my_local_data_path, "pop_and_regions.csv"),
+    onset_to_death = file.path(my_local_data_path, "onset_to_death.csv"),
+    google_mobility = file.path(my_local_data_path, "Global_Mobility_Report.csv"), 
+    
+    # Suaviza a série temporal de mobilidadeem 7 dias
+    google_mobility_window_size = 7L,
+    
+    #Outros parâmetros do modelo
+    ifr = file.path(my_local_data_path, "IFR.csv"), 
+    serial_interval = file.path(my_local_data_path, "serial_interval.csv"),
+    save_path = "../", 
+    is_weekly = FALSE,
+    help = FALSE,
+    
+    # Nome do modelo bayesiano a ser utilizado.
+    # Deve corresponder a algum arquivo do diretório `epiCata/inst/extdata/stan-models`
+    model = "reported-revised", 
+    
+    # Usar alguma das configurações padrão descritas no `epiCata/R/model.R#NAMED_MODELS`
+    mode = "FULL")
+
+```
+
+## Carregando parâmetros
+
+Carrega na memória alguns parâmetros importantes para o modelo:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+onset_to_death <- read_onset_to_death(opt[["onset_to_death"]])
+IFR <- read_IFR(opt[["ifr"]])
+serial_interval <- read_serial_interval(opt[["serial_interval"]])
+infection_to_onset <- read_infection_to_onset(opt[["infection_to_onset"]])
+population <- read_pop(opt[["population"]])
+```
+
+## Lendo os dados
+
+A função `epiCata::read_covid_data` lê os dados puros e realiza várias operações de pre-processamento:
+
+- Calcula total de casos e óbitos diários a nível de cidade, regional de saúde, macrorregião e estado, porém mantem apenas as localidades desejadas.
+- Limpa dados faltantes.
+- Identifica o dia em que a localidade atingiu a marca de 10 óbitos por COVID-19 (`first_mark_ten_deaths`).
+- Filtra os dados de cada localidade para considerar apenas dados dos 30 dias que antecedem o marco de 10 óbitos. Caso queira alterar esse valor, altere o parâmetro `start_pandemic = 30` ao invocar a função.
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+
+covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]], 
+                              allowed_locations = opt[["allowed_locations"]])
+
+head(covid_data)
+```
+
+# Gráficos: casos e óbitos diários
+
+Podemos ver um sumário dos casos e óbitos de cada localidade:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+covid_data %>% 
+  group_by(location_name) %>% 
+  summarise(total_casos=sum(casos), total_obitos=sum(obitos)) %>% 
+  arrange(desc(total_obitos))
+```
+
+E um resumo da evolução dos casos e óbitos em cada macrorregião:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10}
+require(lubridate)
+require(scales)
+require(ggthemes)
+
+plot_df <- 
+  covid_data %>% group_by(location_name, data_ocorrencia) %>% 
+  summarise(casos=sum(casos), obitos=sum(obitos))
+
+ggplot(plot_df, aes(x=data_ocorrencia)) + 
+  geom_col(aes(y = casos, group=location_name, color=location_name),
+            stat = "identity", size = 1.2) + 
+  theme_dsb_light() +  
+  xlab("Período (dias)") + ylab("Número de casos diários") + 
+  scale_x_date(name = "", labels = date_format("%e %b"), 
+               breaks=seq(ymd("2020-03-05"), ymd("2021-06-05"), by="3 months")) +
+  ggthemes::scale_color_tableau(guide=FALSE) + 
+  ggtitle("Casos confirmados de COVID-19 nas sete macrorregiões de Santa Catarina") +
+  facet_wrap(location_name ~ ., nrow=4)
+  
+```
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10}
+ggplot(plot_df, aes(x=data_ocorrencia, group=location_name, color=location_name)) + 
+  geom_line(aes(y=obitos), size=1.6) + 
+  xlab("Período (dias)") + ylab("Número de casos diários") + 
+  scale_x_date(name = "", labels = date_format("%e %b"), 
+               breaks=seq(ymd("2020-03-05"), ymd("2021-06-05"), by="3 months")) +
+  theme_dsb_light() +  
+  ggthemes::scale_color_tableau(guide=FALSE) + 
+  ggtitle("Óbitos confirmados de COVID-19 nas sete macrorregiões de Santa Catarina") +
+  facet_wrap(location_name ~ ., nrow=4)
+  
+```

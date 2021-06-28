@@ -1,0 +1,898 @@
+---
+title: 'Tutorial - 02: Modelo base e uma única localização'
+author: '@jonjoncardoso'
+date: '2021-06-17'
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: true
+code_folding: show
+---
+
+# Preparação dos Dados
+
+Nesse notebook, vamos rodar o modelo epidemiológico para apenas uma única localidade: a macrorregião da Grande Florianópolis.
+
+Com esse exemplo, o objetivo é ganhar uma intuição sobre programação probabilística com [STAN](https://mc-stan.org/), como modelar as variáveis relevantes e como identificar se o modelo está bem calibrado.
+
+Vamos começar então carregando o covid_data que contém apenas a localidade que estamos interessados:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+library(epiCata)
+library(epiCataPlot)
+
+library(lubridate)
+library(tidyverse)
+
+my_local_data_path <- "../../"
+
+#Parâmetros
+opt <- 
+  list(
+    # Data d em que o modelo será rodado. Nesse caso, o código irá usar dados de até o dia d-1
+    reference_date = ymd("2021-06-07"),
+    
+    # Localidades a serem modeladas
+    allowed_locations = c("SC_MAC_GRANDE_FLORIANOPOLIS"),
+    
+    # Ao final será gerado um agregado, combinando as projeções a nível de estado
+    aggregate_name = "SC_ESTADO", 
+    
+    # Dados necessários
+    deaths = file.path(my_local_data_path, "deaths.csv"), 
+    population = file.path(my_local_data_path, "pop_and_regions.csv"),
+    onset_to_death = file.path(my_local_data_path, "onset_to_death.csv"),
+    google_mobility = file.path(my_local_data_path, "Global_Mobility_Report.csv"), 
+    
+    # Suaviza a série temporal de mobilidadeem 7 dias
+    google_mobility_window_size = 7L,
+    
+    #Outros parâmetros do modelo
+    ifr = file.path(my_local_data_path, "IFR.csv"), 
+    serial_interval = file.path(my_local_data_path, "serial_interval.csv"),
+    save_path = "../", 
+    is_weekly = FALSE,
+    help = FALSE,
+    
+    # Dessa vez vamos criar uma configuração customizada
+    mode = "CUSTOM")
+
+onset_to_death <- read_onset_to_death(opt[["onset_to_death"]])
+IFR <- read_IFR(opt[["ifr"]])
+serial_interval <- read_serial_interval(opt[["serial_interval"]])
+infection_to_onset <- read_infection_to_onset(opt[["infection_to_onset"]])
+population <- read_pop(opt[["population"]])
+
+# Na prática, intervenções são as alterações do Google Mobility
+interventions <- read_interventions(opt[["interventions"]],
+                                    allowed_interventions = NULL, # TODO allowed interventions?
+                                    google_mobility_filename = opt[["google_mobility"]],
+                                    google_mobility_window_size = opt[["google_mobility_window_size"]]
+)
+
+covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]], 
+                              allowed_locations = opt[["allowed_locations"]])
+
+head(covid_data)
+
+```
+
+## Curvas reais
+
+Vamos avaliar a evolução no número de casos e óbitos nessa macrorregião:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 12, fig.height = 8}
+require(lubridate)
+require(scales)
+require(ggthemes)
+
+plot_df <- 
+  covid_data %>% group_by(location_name, data_ocorrencia) %>% 
+  summarise(Casos=sum(casos), Obitos=sum(obitos)) %>% 
+  pivot_longer(c(Casos, Obitos), names_to="variable", values_to="value")
+
+ggplot(plot_df, aes(x=data_ocorrencia, y=value, fill=variable)) + 
+  geom_area() + 
+  geom_vline(data=data.frame(variable="Casos", 
+                             xintercept=ymd(c("2020-07-20", "2020-11-10", "2021-02-25"))),
+             aes(xintercept=xintercept), 
+             linetype="dashed", color="#212121") +
+  geom_text(data=data.frame(x = ymd("2020-05-01"), y = 19.95,
+                            variable="Obitos", 
+                            label = "Note que as escalas são bem diferentes"),
+            aes(x=x,y=y,label=label),
+            angle=0, size=4, colour='black', face="bold") +
+  geom_segment(data=data.frame(xend = ymd("2020-02-05"), y = 20,
+                               x = ymd("2020-02-22"), yend=20,
+                               variable="Obitos"),
+               aes(x = x, y=y, xend = xend, yend = yend), 
+               colour='gray', size=1, arrow = arrow(length = unit(0.25, "cm"))) +
+  theme_bw() +  
+  ylab("Número diários") + 
+  scale_x_date(name = "", labels = date_format("%e %b"), 
+               breaks=seq(ymd("2020-03-05"), ymd("2021-06-05"), by="3 months")) +
+  scale_fill_manual(values=list(Casos="coral1", Obitos="coral4"), guide=FALSE) + 
+  ggtitle("Casos vs Obitos confirmados em SC_MAC_GRANDE_FLORIANOPOLIS") +
+  facet_wrap(variable ~ ., scales="free", nrow=2)
+  
+```
+
+Podemos observar três grandes picos no número de óbitos e de certa forma no número de óbitos também. Algo bem curioso é que o pico nos casos da terceira onda foi bem similar ao pico da segunda onda. Porém, o gráfico de óbitos não segue a mesma proporção: o número de óbitos foi proporcionalmente muito superior na terceira onda quando comparado com as anteriores.
+
+**Há fortes evidências de que essa discrepância foi causada pela variante P.1 que surgiu inicialmente em Manaus no final de 2020 e logo se tornou dominante no país.**^[Faria, N.R., et al, 2021. Genomics and epidemiology of the P. 1 SARS-CoV-2 lineage in Manaus, Brazil. Science. Disponível em https://science.sciencemag.org/content/early/2021/04/13/science.abh2644] ^[Fiocruz. 2021. Fiocruz detecta mutação associada a variantes de preocupação do Sars-Cov-2 em diversos estados do país. Último acesso: 27/04/2021. Disponível em: https://portal.fiocruz.br/sites/portal.fiocruz.br/files/documentos/comunicado_variantes_de_preocupacao_fiocruz_2_2021-03-04.pdf] ^[
+Freitas, A.R., et al, 2021. The increase in the risk of severity and fatality rate of covid-19 in southern Brazil after the emergence of the Variant of Concern (VOC) SARS-CoV-2 P. 1 was greater among young adults without pre-existing risk conditions. medRxiv: https://www.medrxiv.org/content/10.1101/2021.04.13.21255281v1 ]
+
+
+# Programação Probabilística e o STAN
+
+O que fazemos neste modelo epidemiológico bayesiano é encontrar valores para os parâmetros que nós supomos melhor representar as dinâmicas do vírus após levar em conta os dados reais observados. 
+
+Suponha que $\theta$ represente o conjunto de parâmetros que queremos estimar, nós podemos prover o modelo com nossas suposições -- nossos _priors_ $p(\theta)$ -- do que a gente _acredita_ fazer sentido para essas distribuições e então, após observar as curvas reais dos dados $p(D)$, queremos realocar a nossa confiança nas suposições iniciais e encontrar distribuições *posteriores* para esses parâmetros.
+
+A pergunta então é: qual a probabilidade de encontrar determinados parâmetros dado que observamos as curvas reais de casos e/ou óbitos? E isso é representado por $p(\theta | D)$:
+
+$$
+p(\theta|D) = \frac{p(D|\theta) \times p(\theta)}{p(D)}
+$$
+
+A probabilidade $p(D|\theta)$ é chamada de *likelihood* e é bem importante. É a forma como dizemos ao modelo de como acreditamos que os dados reais se relacionam com os parâmetros informados.
+
+## Como mapeamos as distribuições
+
+Nesse tutorial vamos começar bem simples e depois ir adicionando mais camadas nas seções seguintes.
+
+Algumas das curvas estatísticas serão tratadas como curvas fixas, calculadas direto do R, enquanto outras serão estimadas usando a ferramenta [STAN](https://mc-stan.org/users/documentation/), direto do R com a biblioteca [rstan](https://mc-stan.org/users/interfaces/rstan).
+
+O algoritmo usado pelo Stan para estimar as probabilidades posteriores é chamado de Hamiltonian Monte Carlo (com NO-TURN sampler) e é um tanto complexo. Caso você queira se aprofundar nisso, as melhores fontes são um artigo com introdução aos conceitos ^[Betancourt, M. (2017). A Conceptual Introduction to Hamiltonian Monte Carlo. Retrieved from http://arxiv.org/abs/1701.02434], o artigo do No-U-Turn sampler ^[Hoffmann, M. & Gelman A. (2014). The No-U-Turn Sampler:  Adaptively Setting Path Lengthsin Hamiltonian Monte Carlo. Journal of Machine Learning Research 15. https://jmlr.org/papers/volume15/hoffman14a/hoffman14a.pdf] ou mesmo a própria [documentação do STAN](https://mc-stan.org/docs/2_27/stan-users-guide/posterior-prediction-chapter.html).
+
+## Estrutura do código STAN
+
+No STAN, precisamos informar dados, funções, priors, likelihoods. Um arquivo .stan tem o seguinte formato:
+
+```{r include=FALSE}
+options(buildtools.check = function(action) TRUE )
+```
+
+```{stan, output.var="sample"}
+  functions {
+    // ... function declarations and definitions ...
+  }
+  data {
+    // ... declarations ...
+  }
+  transformed data {
+     // ... declarations ... statements ...
+  }
+  parameters {
+     // ... declarations ...
+  }
+  transformed parameters {
+     // ... declarations ... statements ...
+  }
+  model {
+     // ... declarations ... statements ...
+  }
+  generated quantities {
+     // ... declarations ... statements ...
+  }
+```
+
+
+Para mais detalhes, consulte o [capítulo 08 da documentação do STAN](https://mc-stan.org/docs/2_19/reference-manual/overview-of-stans-program-blocks.html).
+
+No nosso código do modelo epidemiológico, no pacote `epiCata` já temos uma função que prepara os dados que importamos para o formato apropriado para o STAN:
+
+```{r eval=TRUE, echo=FALSE, warning=FALSE}
+require(epiCata)
+require(lubridate)
+
+stan_list <-
+  prepare_stan_data(covid_data,
+                    interventions,
+                    onset_to_death,
+                    IFR,
+                    serial_interval,
+                    infection_to_onset,
+                    population,
+                    is_weekly = opt[["is_weekly"]],
+                    google_mobility_filename = opt[["google_mobility"]],
+                    google_mobility_window_size = opt[["google_mobility_window_size"]],
+                    population_filename = opt[["population"]]
+  )
+```
+
+
+O objeto stan_list conta com todos os dados que serão passados para o bloco `data` do programa STAN, bem como metadados importantes.
+
+```{r eval=TRUE}
+names(stan_list)
+```
+
+
+Os dados podem ser acessados pela lista `stan_list$stan_data`:
+
+```{r eval=TRUE}
+names(stan_list$stan_data)
+```
+
+
+# Suposições
+
+As suposições que vamos fazer são as seguintes:
+
+1. Os primeiros casos diários de COVID-19 na localidade são "importados", nos primeiros 6 dias de modelagem não há ainda transmissão comunitária.
+2. O vírus tem uma taxa de reprodução natural $(R_{0})$, que representa o número de infecções secundárias que acontecem após as infecções primárias do vírus.
+3. O vírus tem uma `infection fatality rate` de aproximadamente $\text{IFR} \approx 0.741\%$. Ou seja, de cada 1000 infectados (sintomáticos ou assintomáticos), 7 virão a óbito.
+4. A dinâmica da doença não é algo uniforme e varia muito de pessoa para pessoa. Nós vamos representar três dessas variabilidades com curvas estatísticas:
+    - algumas pessoas vão sentir sintomas logo nos primeiros dias, outras vão sentir sintomas 1-2 semanas depois. Esse período de tempo desde a infecção até o aparecimento de sintomas e sua variabilidade será chamado de `infection-to-onset`.
+    - nos casos de óbitos, o período desde os primeiros sintomas até o óbito também varia. Esse período é aqui chamado de `onset-to-death`.
+    - o vírus se transmite por contato entre as pessoas, o tempo de uma pessoa infectada trasmitir para outra também varia e é chamado de _generation interval_ ^[Wallinga, J., & Lipsitch, M. (2007). How generation intervals shape the relationship between growth rates and reproductive numbers. Proceedings of the Royal Society B: Biological Sciences, 274(1609), 599–604. https://doi.org/10.1098/rspb.2006.3754]. **Isso é algo bem difícil de modelar, então aqui vamos usar um proxy: o `serial interval`**, que é o tempo que passa desde o aparecimento de sintomas de uma pessoa até o aparecimento dos primeiros sintomas na pessoa a qual ela infectou.
+5. **O número diário de infectados** será estimado pela convolução entre a quantidade de infectados nos dias anteriores e a curva do `serial interval`.
+6. **O número diário de óbitos** será estimado pela convolução entre a quantidade de infectados nos dias anteriores e as curvas de `infection-to-onset` e `onset-to-death`.
+
+
+Essas suposições foram baseadas no modelo da Imperial College London (ICL) de Flaxman et al. O artigo com esse modelo deles foi publicado na revista Nature ^[Flaxman, S., Mishra, S., Gandy, A., Unwin, H. J. T., Mellan, T. A., Coupland, H., … Bhatt, S. (2020). Estimating the effects of non-pharmaceutical interventions on COVID-19 in Europe. Nature, 584(7820), 257–261. https://doi.org/10.1038/s41586-020-2405-7] e há também uma versão mais técnica no arXiv que descreve as equações utilizadas ^[Flaxman, S., Mishra, S., Gandy, A., Unwin, H. J. T., Coupland, H., Mellan, T. A., … Bhatt, S. (2020). Estimating the number of infections and the impact of non-pharmaceutical interventions on COVID-19 in European countries: technical description update, 1–6. http://arxiv.org/abs/2004.11342].
+
+# Curvas fixas
+
+Como disse acima, as curvas do item 4 são fixas na simulação. Podemos vê-las abaixo:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=6}
+require(tidyverse)
+require(ggplot2)
+require(EnvStats)
+
+infection_to_onset <- EnvStats::rgammaAlt(1e6, mean=5.1, cv=0.86)
+onset_to_death <- EnvStats::rgammaAlt(1e6, mean=20.37, cv=0.768)
+
+plot_df <-
+  bind_rows(
+    data.frame(x=infection_to_onset, curve="infection-to-onset ~ \u0393(5.1, 0.86))"),
+    data.frame(x=onset_to_death, curve="onset-to-death ~ \u0393(20.37, 0.768)"),
+    data.frame(x=infection_to_onset + onset_to_death, curve="infection-to-death"))
+
+
+ggplot(plot_df, aes(x=x, color=curve, fill=curve)) + 
+  geom_density(size=1.5, alpha=0.6) + 
+  theme_dsb_light() + 
+  theme(legend.position = "bottom") +
+  ggthemes::scale_color_tableau(palette = "Color Blind") + 
+  ggthemes::scale_fill_tableau(palette = "Color Blind") + 
+  xlab("Período (dias)") + ylab("Densidade") + 
+  ggtitle("Distribuições fixas no modelo") + 
+  scale_x_continuous(breaks=seq(0, 80, 10), limits=c(0,80))
+```
+
+A distribuição do serial interval é dada por uma distribuição gamma também: $SI \sim \Gamma(6.5, 0.62)$:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=6}
+require(tidyverse)
+require(ggplot2)
+require(EnvStats)
+
+
+ggplot(data.frame(x=EnvStats::rgammaAlt(1e6, mean=6.5, cv=0.62)), 
+       aes(x=x)) + 
+  geom_density(size=1.5, color="#17becf", fill="#17becf", alpha=0.6) + 
+  theme_dsb_light() + 
+  theme(legend.position = "bottom") +
+  xlab("Período (dias)") + ylab("Densidade") + 
+  ggtitle("Distribuição do Serial Interval (SI): onset-to-onset") + 
+  scale_x_continuous(breaks=seq(0, 80, 10), limits=c(0,80))
+```
+
+# Parâmetros principais
+
+Os primeiros parâmetros que estamos interessados em estimar -- nossos $\theta$ -- são:
+
+- $\mu$: análogo $R_{0}$, é a taxa de reprodução natural/inicial do vírus quando nenhuma medida de controle é empregada.
+- $y$: o número de infecções iniciais naquela localidade. Pense nisso como o número de pessoas infectadas logo nos primeiros dias da modelagem, antes da transmissão se dar de forma comunitária propriamente dita.
+
+
+## Priors
+
+Que forma a gente acredita que esses parâmetros tem que seguir? 
+
+Seguindo nosso artigo e o modelo da Imperial College London, os priors de $\mu$ e $y$ são configurados da seguinte forma:
+
+$$
+\begin{equation*}
+  y \sim exp\left(\frac{1}{\tau}\right) \\
+  mu \sim \mathcal{N}(3.28, \kappa)
+\end{equation*}
+$$
+
+dependendo então de outros dois parâmetros:
+
+$$
+\begin{equation*}
+  \tau \sim exp(0.03) \\
+  \kappa \sim \mathcal{N}(0, 0.5)
+\end{equation*}
+$$
+
+Qual a aparência dessas curvas?
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 8, fig.height=6}
+require(tidyverse)
+require(EnvStats)
+require(ggplot2)
+
+tau <- rexp(1e3, rate=0.03)
+y <- as.vector(sapply(tau, function(x){rexp(1e3, rate=1/x)}))
+
+plot_df <-
+  bind_rows(
+    data.frame(x=tau, curve="\u03c4 ~ exp(0.03)"),
+    data.frame(x=y, curve="y ~ exp(1/\u03c4)")
+    )
+
+
+ggplot(plot_df, aes(x=x, color=curve, fill=curve)) + 
+  geom_density(size=1.5, alpha=0.6) + 
+  theme_bw() + 
+  theme(legend.position = "bottom") +
+  ggthemes::scale_color_tableau(palette = "Color Blind") + 
+  ggthemes::scale_fill_tableau(palette = "Color Blind") + 
+  xlab("Valores") + ylab("Densidade") + 
+  xlim(0, 150) + 
+  ggtitle("Priors das distribuições \u03c4 e y") + 
+  facet_wrap(curve ~ ., scales="free", nrow=2)
+```
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 8, fig.height=4}
+require(tidyverse)
+require(EnvStats)
+require(ggplot2)
+
+kappa <- EnvStats::rnormTrunc(1e3, mean=0, sd=0.5, min=0)
+mu <- as.vector(sapply(kappa, function(x){EnvStats::rnormTrunc(1e3, mean=3.28, sd=x, min=0)}))
+
+plot_df <-
+  bind_rows(
+    data.frame(x=kappa, curve="\u03ba ~ N(0, 0.5), \u03ba \u2265 0"),
+    data.frame(x=mu, curve="\u03bc ~ N(3.28, \u03ba)")
+  )
+
+ggplot(plot_df, aes(x=x, color=curve, fill=curve)) + 
+  geom_density(size=1.5, alpha=0.6) + 
+  theme_bw() + 
+  theme(legend.position = "bottom") +
+  ggthemes::scale_color_tableau(palette = "Color Blind") + 
+  ggthemes::scale_fill_tableau(palette = "Color Blind") + 
+  xlab("Valores") + ylab("Densidade") + 
+  ggtitle("Priors das distribuições \u03ba e \u03bc") + 
+  facet_wrap(curve ~ ., scales="free", ncol=2)
+```
+
+
+# Simulação 01: Simples
+
+
+Nossa primeira simulação com o STAN, vamos modelar esse caso:
+
+```{stan eval=TRUE, output.var="simple_model"}
+data {
+  int <lower=1> M; // number of countries
+  int <lower=1> P; // number of covariates
+  int <lower=1> N0; // number of days for which to impute infections
+  int<lower=1> N[M]; // days of observed data for country m. each entry must be <= N2
+  int<lower=1> N2; // days of observed data + # of days to forecast
+  int cases[N2,M]; // reported cases
+  int deaths[N2, M]; // reported deaths -- the rows with i > N contain -1 and should be ignored
+  matrix[N2, M] f; // h * s
+  matrix[N2, P] X[M]; // features matrix
+  real pop[M];
+  real SI[N2]; // fixed pre-calculated SI using emprical data from Neil
+}
+
+transformed data {
+  vector[N2] SI_rev; // SI in reverse order
+  vector[N2] f_rev[M]; // f in reversed order
+
+  for(i in 1:N2)
+    SI_rev[i] = SI[N2-i+1];
+
+  for(m in 1:M){
+    for(i in 1:N2) {
+     f_rev[m, i] = f[N2-i+1,m];
+    }
+  }
+}
+
+
+parameters {
+  real<lower=0> mu; // intercept for Rt
+  real<lower=0> kappa;
+  real<lower=0> y;
+  real<lower=0> tau;
+  
+  real <lower=0> ifr_noise;
+}
+
+transformed parameters {
+    matrix[N2, M] prediction = rep_matrix(0,N2,M);
+    matrix[N2, M] E_deaths  = rep_matrix(0,N2,M);
+    matrix[N2, M] Rt_adj = rep_matrix(0,N2,M);
+
+    {
+    
+      for (m in 1:M){
+        prediction[1:N0,m] = rep_vector(y,N0); // learn the number of cases in the first N0 days
+
+        Rt_adj[1:N0,m] = rep_vector(mu, N0);
+        
+        for (i in (N0+1):N2) {
+          real convolution = dot_product(sub_col(prediction, 1, m, i-1), tail(SI_rev, i-1));
+
+          Rt_adj[i,m] = mu; 
+          prediction[i, m] = Rt_adj[i,m] * convolution;
+        }
+        E_deaths[1, m]= 1e-15 * prediction[1,m];
+        for (i in 2:N2){
+          E_deaths[i,m] = ifr_noise * dot_product(sub_col(prediction, 1, m, i-1), tail(f_rev[m], i-1));
+        }
+      }
+    }
+}
+
+model {
+  tau ~ exponential(0.03);
+  y ~ exponential(1/tau);
+  
+  kappa ~ normal(0,0.5);
+  mu ~ normal(3.28, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
+  
+  ifr_noise ~ normal(1,0.1);
+}
+```
+
+Após definir o modelo STAN e salvar na variável `simple_model`, podemos então fazer o sampling:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+require(rstan)
+
+options(mc.cores = parallel::detectCores())
+rstan::rstan_options(auto_write = FALSE)
+```
+
+Vamos então rodar o algoritmo com 1000 iterações, sendo que 500 são de warmup (não aparecem na estimativa dos posteriores depois). Para esse exemplo, vou rodar apenas 1 chain mas na prática é importante rodar com 4 ou mais.
+
+O código abaixo deve demorar alguns segundos:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+require(rstan)
+
+fit <- 
+  rstan::sampling(simple_model,
+                  data = stan_list$stan_data, iter = 1000, warmup = 500, 
+                  chains = 1, verbose = TRUE,
+                  control = list(adapt_delta = 0.95, max_treedepth = 7))
+```
+
+## Extraindo resultados para diagnóstico
+
+```{r eval=TRUE, message=FALSE}
+require(bayesplot)
+
+model_output <- 
+  list(fit = fit, out = rstan::extract(fit), 
+       stan_list = stan_list, 
+       model_name = "simple_model", 
+       mode = "CUSTOM", 
+       is_weekly = FALSE)
+model_output[["covid_data"]] <- covid_data
+
+lp <- log_posterior(fit)
+np <- nuts_params(fit)
+```
+
+## Como ficaram as distribuições posteriores?
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 8, fig.height=5}
+
+require(bayesplot)
+
+fit_df <- as.data.frame(model_output$fit)
+cols <- fit_df %>% select(tau,  y, kappa, mu) %>% colnames()
+
+mcmc_dens(as.array(model_output$fit), np=np, pars=cols)
+```
+
+## Gráficos de diagnóstico
+
+E o que isso significa?
+
+```{r include=FALSE}
+plot_case_curve <- function(model_output, location_name){
+  dfs <- get_dfs(location_name, model_output) 
+  selected_dates <- model_output$stan_list$dates[[location_name]]
+  ggplot(dfs$data_location %>% filter(time %in% selected_dates), aes(x=time+days(6))) + 
+    geom_col(aes(y=reported_cases), fill='coral4', alpha=0.7) + 
+    geom_ribbon(aes(ymin=predicted_min2, ymax=predicted_max2), linetype="dotted", alpha=0.65, fill="deepskyblue4") + 
+    geom_ribbon(aes(ymin=predicted_min, ymax=predicted_max), linetype="dotted", alpha=0.45, fill="deepskyblue4") + 
+    ggthemes::theme_clean() + 
+    scale_x_date(date_breaks="2 weeks") + 
+    theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+    xlab("Week starting on day") + ylab("Cases") + 
+    ggtitle(sprintf("Case vs Estimated infections - %s", location_name))
+}
+
+plot_death_curve <- function(model_output, location_name){
+  dfs <- get_dfs(location_name, model_output) 
+  selected_dates <- model_output$stan_list$dates[[location_name]]
+  ggplot(dfs$data_location %>% filter(time %in% selected_dates), aes(x=time+days(6))) + 
+    geom_col(aes(y=deaths), fill='coral4', alpha=0.7) + 
+    geom_ribbon(aes(ymin=death_min2, ymax=death_max2), linetype="dotted", alpha=0.65, fill="deepskyblue4") + 
+    geom_ribbon(aes(ymin=death_min, ymax=death_max), linetype="dotted", alpha=0.45, fill="deepskyblue4") + 
+    ggthemes::theme_clean() + 
+    scale_x_date(date_breaks="2 weeks") + 
+    theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+    xlab("Week starting on day") + ylab("Deaths") + 
+    ggtitle(sprintf("Deaths vs Estimated deaths - %s", location_name))
+}
+
+plot_Rt_curve <- function(model_output, location_name){
+  dfs <- get_dfs(location_name, model_output) 
+  selected_dates <- model_output$stan_list$dates[[location_name]]
+  ggplot(dfs$data_location %>% filter(time %in% selected_dates), aes(x=time+days(6))) + 
+    geom_line(aes(y=rt), color='black', size=1.3) + 
+    geom_ribbon(aes(ymin=rt_min2, ymax=rt_max2), linetype="dotted", alpha=0.75, fill="seagreen") + 
+    geom_ribbon(aes(ymin=rt_min, ymax=rt_max), linetype="dotted", alpha=0.5, fill="seagreen") + 
+    ggthemes::theme_clean() + 
+    scale_x_date(date_breaks="2 weeks") + 
+    theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+    xlab("Week starting on day") + ylab("Rt") + 
+    ggtitle(sprintf("R(t) - %s", location_name))
+}
+
+```
+
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_Rt_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_case_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+Isso não é muito realista... 
+
+
+
+# Simulação 02: corrigindo pelo tamanho da população
+
+```{stan eval=TRUE, output.var="simple_model_pop_adj"}
+data {
+  int <lower=1> M; // number of countries
+  int <lower=1> P; // number of covariates
+  int <lower=1> N0; // number of days for which to impute infections
+  int<lower=1> N[M]; // days of observed data for country m. each entry must be <= N2
+  int<lower=1> N2; // days of observed data + # of days to forecast
+  int cases[N2,M]; // reported cases
+  int deaths[N2, M]; // reported deaths -- the rows with i > N contain -1 and should be ignored
+  matrix[N2, M] f; // h * s
+  matrix[N2, P] X[M]; 
+  real pop[M];
+  real SI[N2]; 
+}
+
+transformed data {
+  vector[N2] SI_rev;
+  vector[N2] f_rev[M]; 
+
+  for(i in 1:N2)
+    SI_rev[i] = SI[N2-i+1];
+
+  for(m in 1:M){
+    for(i in 1:N2) {
+     f_rev[m, i] = f[N2-i+1,m];
+    }
+  }
+}
+
+
+parameters {
+  real<lower=0> mu; 
+  real<lower=0> kappa;
+  real<lower=0> y;
+  real<lower=0> tau;
+  
+  real <lower=0> ifr_noise;
+}
+
+transformed parameters {
+    matrix[N2, M] prediction = rep_matrix(0,N2,M);
+    matrix[N2, M] E_deaths  = rep_matrix(0,N2,M);
+    matrix[N2, M] Rt_adj = rep_matrix(0,N2,M);
+
+    {
+    
+      matrix[N2,M] cumm_sum = rep_matrix(0,N2,M); // Soma cumulativa
+    
+      for (m in 1:M){
+        prediction[1:N0,m] = rep_vector(y,N0); 
+        cumm_sum[2:N0,m] = cumulative_sum(prediction[2:N0,m]); // Soma cumulativa
+
+
+        Rt_adj[1:N0,m] = rep_vector(mu, N0);
+        
+        for (i in (N0+1):N2) {
+          real convolution = dot_product(sub_col(prediction, 1, m, i-1), tail(SI_rev, i-1));
+          cumm_sum[i,m] = cumm_sum[i-1,m] + prediction[i-1,m];
+
+          // O Rt agora se adequa ao % da população que já foi infectada
+          Rt_adj[i,m] = ((pop[m] - cumm_sum[i,m]) / pop[m]) * mu; 
+          
+          prediction[i, m] = Rt_adj[i,m] * convolution;
+        }
+        E_deaths[1, m]= 1e-15 * prediction[1,m];
+        for (i in 2:N2){
+          E_deaths[i,m] = ifr_noise * dot_product(sub_col(prediction, 1, m, i-1), tail(f_rev[m], i-1));
+        }
+      }
+    }
+}
+
+model {
+  tau ~ exponential(0.03);
+  y ~ exponential(1/tau);
+  
+  kappa ~ normal(0,0.5);
+  mu ~ normal(3.28, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
+  
+  ifr_noise ~ normal(1,0.1);
+}
+```
+
+Vamos rodar uma nova simulação:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+require(rstan)
+
+fit <- 
+  rstan::sampling(simple_model_pop_adj,
+                  data = stan_list$stan_data, iter = 1000, warmup = 500, 
+                  chains = 1, verbose = TRUE,
+                  control = list(adapt_delta = 0.95, max_treedepth = 7))
+```
+
+## Extração dos resultados para diagnóstico
+
+```{r eval=TRUE, message=FALSE}
+require(bayesplot)
+
+model_output <- 
+  list(fit = fit, out = rstan::extract(fit), 
+       stan_list = stan_list, 
+       model_name = "simple_model_pop_adj", 
+       mode = "CUSTOM", 
+       is_weekly = FALSE)
+model_output[["covid_data"]] <- covid_data
+
+lp <- log_posterior(fit)
+np <- nuts_params(fit)
+```
+
+## Gráficos de diagnóstico
+
+Dessa vez o Rt não se mantém em $R=3.28$ mas decresce com o tempo por conta do tamanho da população:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_Rt_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+Isso faz com que o número de pessoas infectadas siga uma curva epidemiológica característica:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_case_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+Note porém que o número de casos confirmados não condiz com o número de casos observados (barrinhas pequenas em vermelho). Apesar de conseguir levar em conta o tamanho da população agora, essa estimativa ainda está MUITO fora da realidade.
+
+Veja também a estimativa da curva de óbitos desse modelo:
+
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_death_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+Como nosso modelo STAN não está usando os dados de casos e/ou óbitos para nada, a estimativa do modelo é puramente uma simulação hipotética do que aconteceria dados aqueles valores de $\mu$ e $y$ iniciais. 
+
+Para que o modelo leve em conta os dados de forma mais concreta, precisamos adicionar alguma curva de likelihood.
+
+
+# Simulação 03: adicionando likelihood
+
+Nossa principal suposição aqui é de que os óbitos fitados pelo modelo $(D_{t,m})$ para uma localidade $m$ deve seguir uma distribuição binomial negativa em cada período $t$, levando em conta o número de óbitos observados $(d_{t,m}$:
+
+$$
+\begin{equation*}
+D_{t,m} \sim \text{Negative Binomial}(d_{t,m}, \phi) \\
+\phi \sim \mathcal{N}^+(0, 5)
+\end{equation*}
+$$
+
+```{stan eval=TRUE, output.var="simple_model_likelihood"}
+data {
+  int <lower=1> M; // number of countries
+  int <lower=1> P; // number of covariates
+  int <lower=1> N0; // number of days for which to impute infections
+  int<lower=1> N[M]; // days of observed data for country m. each entry must be <= N2
+  int<lower=1> N2; // days of observed data + # of days to forecast
+  int cases[N2,M]; // reported cases
+  int deaths[N2, M]; // reported deaths -- the rows with i > N contain -1 and should be ignored
+  matrix[N2, M] f; // h * s
+  matrix[N2, P] X[M]; 
+  real pop[M];
+  real SI[N2]; 
+}
+
+transformed data {
+  vector[N2] SI_rev;
+  vector[N2] f_rev[M]; 
+
+  for(i in 1:N2)
+    SI_rev[i] = SI[N2-i+1];
+
+  for(m in 1:M){
+    for(i in 1:N2) {
+     f_rev[m, i] = f[N2-i+1,m];
+    }
+  }
+}
+
+
+parameters {
+  real<lower=0> mu; 
+  real<lower=0> kappa;
+  real<lower=0> y;
+  real<lower=0> tau;
+  
+  real <lower=0> ifr_noise;
+  
+  real <lower=0> phi;
+}
+
+transformed parameters {
+    matrix[N2, M] prediction = rep_matrix(0,N2,M);
+    matrix[N2, M] E_deaths  = rep_matrix(0,N2,M);
+    matrix[N2, M] Rt_adj = rep_matrix(0,N2,M);
+
+    {
+    
+      matrix[N2,M] cumm_sum = rep_matrix(0,N2,M); // Soma cumulativa
+    
+      for (m in 1:M){
+        prediction[1:N0,m] = rep_vector(y,N0); 
+        cumm_sum[2:N0,m] = cumulative_sum(prediction[2:N0,m]); // Soma cumulativa
+
+
+        Rt_adj[1:N0,m] = rep_vector(mu, N0);
+        
+        for (i in (N0+1):N2) {
+          real convolution = dot_product(sub_col(prediction, 1, m, i-1), tail(SI_rev, i-1));
+          cumm_sum[i,m] = cumm_sum[i-1,m] + prediction[i-1,m];
+
+          Rt_adj[i,m] = ((pop[m] - cumm_sum[i,m]) / pop[m]) * mu; 
+          
+          prediction[i, m] = Rt_adj[i,m] * convolution;
+        }
+        E_deaths[1, m]= 1e-15 * prediction[1,m];
+        for (i in 2:N2){
+          E_deaths[i,m] = ifr_noise * dot_product(sub_col(prediction, 1, m, i-1), tail(f_rev[m], i-1));
+        }
+      }
+    }
+}
+
+model {
+  tau ~ exponential(0.03);
+  y ~ exponential(1/tau);
+  
+  kappa ~ normal(0,0.5);
+  mu ~ normal(3.28, kappa); 
+  
+  ifr_noise ~ normal(1,0.1);
+  
+  phi ~ normal(0, 5);
+  
+  for(m in 1:M){
+    deaths[1:N[m], m] ~ neg_binomial_2(E_deaths[1:N[m], m], phi);
+  }
+}
+```
+
+
+Vamos rodar uma nova simulação:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+require(rstan)
+
+fit <- 
+  rstan::sampling(simple_model_likelihood,
+                  data = stan_list$stan_data, iter = 1000, warmup = 500, 
+                  chains = 1, verbose = TRUE,
+                  control = list(adapt_delta = 0.95, max_treedepth = 7))
+```
+
+## Extração dos resultados para diagnóstico
+
+```{r eval=TRUE, message=FALSE}
+require(bayesplot)
+
+model_output <- 
+  list(fit = fit, out = rstan::extract(fit), 
+       stan_list = stan_list, 
+       model_name = "simple_model_likelihood", 
+       mode = "CUSTOM", 
+       is_weekly = FALSE)
+model_output[["covid_data"]] <- covid_data
+
+lp <- log_posterior(fit)
+np <- nuts_params(fit)
+```
+
+## Como ficaram as posteriores?
+
+Dessa vez, elas variaram bastante dos priors que informamos.
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 8, fig.height=5}
+
+require(bayesplot)
+
+fit_df <- as.data.frame(model_output$fit)
+cols <- fit_df %>% select(tau,  y, kappa, mu) %>% colnames()
+
+mcmc_dens(as.array(model_output$fit), np=np, pars=cols)
+```
+
+## Gráficos de diagnóstico
+
+Dessa vez o R inicial nem foi estimado em 3.28 mas sim, 1.10 e decresce com o tempo por conta do tamanho da população:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_Rt_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+Isso faz com que o número de pessoas infectadas siga uma curva epidemiológica característica que, apesar de ter magnitude similar aos dados observados, não condiz com o padrão das 3 ondas observadas:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_case_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+O mesmo acontece com estimativa da curva de óbitos desse modelo:
+
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_death_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+Como lidar então com esse problema? A resposta é: adicionar mais dados e/ou priors mais informativos.
+
+Veremos como fazer isso nos próximos tutoriais.
+
+
+# Próximos passos
+
+Nos próximos tutoriais vamos abordar:
+
+- como adicionar covariates (Google Mobility) para estimar o Rt
+- como lidar com múltiplas localidades: dá certo estimar cada local separadamente ou precisa estimar tudo junto?
+- o tempo de execução de modelos de joint estimate
+- o modelo `base-reported`
+- o modelo weekly: como agregar os dados por semanas ao invés de dias.
+
+
+# Referências

@@ -33,76 +33,111 @@ parameters {
   real<lower=0> kappa;
   real<lower=0> y;
   real<lower=0> phi;
+  real<lower=0> phi_sd;
   real<lower=0> tau;
   real <lower=0> ifr_noise;
-  real <lower=0> alpha_hier[P];
-  // real <lower=0> alpha1[P,M];
+  real alpha_hier[P];
+  //real alpha[P,M];
   
   real<lower=1> infection_overestimate;
 }
 
 transformed parameters {
-    vector[P] alpha;
-    matrix[N2, M] prediction = rep_matrix(0,N2,M);
-    matrix[N2, M] E_deaths  = rep_matrix(0,N2,M);
-    matrix[N2, M] Rt = rep_matrix(0,N2,M);
-    // matrix[N2, M] Rt_adj = Rt;
+    matrix<lower=0>[N2, M] prediction = rep_matrix(0,N2,M);
+    matrix<lower=0>[N2, M] E_deaths  = rep_matrix(0,N2,M);
+    matrix<lower=0>[N2, M] Rt_adj = rep_matrix(0,N2,M);
+    vector[N2] linear_effect;
 
     {
-      //matrix[N2,M] cumm_sum = rep_matrix(0,N2,M);
-      vector[N2] linear_effect;
-      for(i in 1:P){
-        alpha[i] = alpha_hier[i] - ( log(1.05) / P );
-      }
+      matrix[N2,M] cumm_sum = rep_matrix(0,N2,M);
       
       for (m in 1:M){
         linear_effect = rep_vector(0,N2);
-        prediction[1:N0,m] = rep_vector(y,N0); // learn the number of cases in the first N0 days
-        //cumm_sum[2:N0,m] = cumulative_sum(prediction[2:N0,m]);
+        prediction[1:N0,m] = rep_vector(y, N0); // learn the number of cases in the first N0 days
+        cumm_sum[1:N0,m] = cumulative_sum(prediction[1:N0,m]);
 
-        Rt[1:N0,m] = rep_vector(mu, N0);
-        //Rt_adj[1:N0,m] = Rt[1:N0,m];
+        Rt_adj[1:N0,m] = rep_vector(mu, N0);
+        
         for (i in (N0+1):N2) {
           real convolution = dot_product(sub_col(prediction, 1, m, i-1), tail(SI_rev, i-1));
-          //cumm_sum[i,m] = cumm_sum[i-1,m] + prediction[i-1,m];
+          cumm_sum[i,m] = cumm_sum[i-1,m] + prediction[i-1,m];
 
           for(p in 1:P) {
-            linear_effect[i] -= (X[m,i,p] * alpha[p]);
+            // linear_effect[i] -= (X[m,i,p]);
+            linear_effect[i] -= (X[m,i,p] * alpha_hier[p]);
+            // linear_effect[i] -= (X[m,i,p] * (alpha_hier[p] + alpha[p, m]));
           }
-          Rt[i,m] = mu * 2 * inv_logit(linear_effect[i]); //If we use exp(), STAN can't find any samples
+          
+          //Rt[i,m] = mu * inv_logit(linear_effect[i]);
+          //Rt_adj[i,m] =  ((pop[m] - cumm_sum[i,m]) / pop[m]) * Rt[i,m];
+          
+          Rt_adj[i,m] =  ((pop[m] - cumm_sum[i,m]) / pop[m]) * mu * inv_logit(linear_effect[i]);
+          // Rt_adj[i,m] =  ((pop[m] - cumm_sum[i,m]) / pop[m]) * mu;
+          
+          // Cori et al method, as described in https://dx.doi.org/10.1371/journal.pcbi.1008409
+          //Rt_inst[i, m] = prediction[i - 1, m] / convolution;
 
-          // Rt_adj[i,m] = ((pop[m]-cumm_sum[i,m]) / pop[m]) * Rt[i,m];
-          prediction[i, m] = Rt[i,m] * convolution;
+          
+          prediction[i, m] = Rt_adj[i,m] * convolution;
         }
         E_deaths[1, m]= 1e-15 * prediction[1,m];
         for (i in 2:N2){
-          E_deaths[i,m] = ifr_noise * dot_product(sub_col(prediction, 1, m, i-1), tail(f_rev[m], i-1));
+          E_deaths[i,m] = ifr_noise * dot_product(sub_col(prediction, 1, m, i-1), tail(f_rev[m], i-1));// * ifr_noise;
         }
       }
     }
 }
 model {
-  tau ~ exponential(0.03);
+  tau ~ exponential(0.5);
   //for (m in 1:M){
       y ~ exponential(1/tau);
   //}
   gamma ~ normal(0,.2);
-  phi ~ normal(0,2);
-  kappa ~ normal(0,0.5);
-  mu ~ normal(3.28, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
   
+  phi_sd ~ normal(1, 10);
+  phi ~ normal(0, phi_sd);
+  kappa ~ normal(0,0.1);
+  mu ~ normal(3.28, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
+
   for (i in 1:P){
-    alpha_hier[i] ~ normal(1.0/P, P); // Mean = 1/6
-    //alpha1[i,] ~ normal(0,gamma);
+    alpha_hier[i] ~ normal(1.0/P, 1.0); // Mean = 1/6
+    //alpha[i,] ~ normal(0, gamma);
   }
 
   ifr_noise ~ normal(1,0.1);
-  
+
   infection_overestimate ~ normal(2.5,1);
-  
-  for(m in 1:M){
-    cases[(N0+1):N[m], m] ~ neg_binomial_2(prediction[N0:(N[m]-1), m] / infection_overestimate, phi);
-    deaths[1:N[m], m] ~ neg_binomial_2(E_deaths[1:N[m], m], phi);
+
+   for(m in 1:M){
+     cases[(N0+1):N[m], m] ~ neg_binomial_2(prediction[N0:(N[m]-1), m] / infection_overestimate, phi);
+     deaths[1:N[m], m] ~ neg_binomial_2(E_deaths[1:N[m], m], gamma);
   }
 }
 
+generated quantities {
+  
+
+  
+    matrix[N2, M] prediction0 = rep_matrix(0, N2, M);
+    matrix[N2, M] E_deaths0  = rep_matrix(0, N2, M);
+
+    {
+      matrix[N2, M] cumm_sum0 = rep_matrix(0,N2,M);
+      for (m in 1:M){
+
+        prediction0[1:N0,m] = rep_vector(y, N0);
+        cumm_sum0[1:N0,m] = cumulative_sum(prediction0[1:N0,m]);
+        
+        for (i in (N0+1):N2) {
+          real convolution0 = dot_product(sub_col(prediction0, 1, m, i-1), tail(SI_rev, i-1));
+          cumm_sum0[i,m] = cumm_sum0[i-1,m] + prediction0[i-1,m];
+
+          prediction0[i,m] = Rt_adj[i, m] * convolution0;
+        }
+        E_deaths0[1, m]= 1e-15 * prediction0[1,m];
+        for (i in 2:N2){
+          E_deaths0[i,m] = ifr_noise * dot_product(sub_col(prediction0, 1, m, i-1), tail(f_rev[m], i-1));
+        }
+      }
+    }
+}
