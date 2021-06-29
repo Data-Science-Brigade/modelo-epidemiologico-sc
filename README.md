@@ -12,9 +12,9 @@ Para entender como pacotes R funcionam, leia o livro on-line gratuito: http://r-
 
 ## Tutoriais
 
-- [00 - Setup do Ambiente](tutoriais/PT-BR/Tutorial00.html)
-- [01 - Preprocessamento](tutoriais/PT-BR/Tutorial01.html)
-- [02 - Modelo base e uma única localização](tutoriais/PT-BR/Tutorial02.html)
+- [00 - Setup do Ambiente](https://data-science-brigade.github.io/modelo-epidemiologico-sc/tutoriais/PT-BR/Tutorial00.html)
+- [01 - Preprocessamento](https://data-science-brigade.github.io/modelo-epidemiologico-sc/tutoriais/PT-BR/Tutorial01.html)
+- [02 - Modelo base e uma única localização](https://data-science-brigade.github.io/modelo-epidemiologico-sc/tutoriais/PT-BR/Tutorial02.html)
 
 ## Como compilar
 
