@@ -101,6 +101,7 @@ make_option_list <- function(default_locations,
                              serial_interval_csv = "serial_interval.csv",
                              save_path = "../",
                              model_init_filename = NULL,
+                             mode="DEBUG",
                              is_weekly = FALSE) {
   if (is.null(reference_date)) {
     require(lubridate)
