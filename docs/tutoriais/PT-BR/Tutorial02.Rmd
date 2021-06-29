@@ -26,7 +26,7 @@ library(epiCataPlot)
 library(lubridate)
 library(tidyverse)
 
-my_local_data_path <- "../../"
+my_local_data_path <- "../../../"
 
 #Parâmetros
 opt <- 
@@ -883,20 +883,254 @@ plot_death_curve(model_output, model_output$stan_list$available_locations[1]) +
   scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
 ```
 
-Como lidar então com esse problema? A resposta é: adicionar mais dados e/ou priors mais informativos.
+# Simulação 04: Adicionando dados de mobilidade
 
-Veremos como fazer isso nos próximos tutoriais.
+O objeto `stan_list` já contém dados previamente compilados do Google Mobility para a localidade informada.Esses dados ficam salvas na matriz multidimensional `stan_list$stan_data$X` (inclusive, `X` não é um bom nome para essa variável. Mantive pra ficar compatível com o código base original, mas poderia ser algo como `mobility` ou `covariates`).
+
+Essa matriz tem 3 dimensões `(M, N2, P)`: localidade, número de dias modelados e tipo de mobilidade (`P`). Existem seis tipos de categorias de locais mapeados por esses dados [(fonte)](https://www.google.com/covid19/mobility/data_documentation.html?hl=en):
+
+- **Grocery & pharmacy**: Mobility trends for places like grocery markets, food warehouses, farmers markets, specialty food shops, drug stores, and pharmacies.
+
+- **Parks**: Mobility trends for places like local parks, national parks, public beaches, marinas, dog parks, plazas, and public gardens.
+
+- **Transit Stations**: Mobility trends for places like public transport hubs such as subway, bus, and train stations.
+
+- **Retail & recreation**: Mobility trends for places like restaurants, cafes, shopping centers, theme parks, museums, libraries, and movie theaters.
+
+- **Residential**: Mobility trends for places of residence.
+
+- **Workplaces**: Mobility trends for places of work.
+
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+stan_list$stan_data$X[1,,] %>% head()
+```
+
+Outro local onde esses mesmos dados estão disponíveis, mas em outro formato, é no `stan_list$common_interventions`:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+require(ggthemes)
+require(scales)
+require(lubridate)
+
+plot_df <- 
+  stan_list$common_interventions %>% 
+  pivot_longer(cols=-`DATA`, names_to="Mobility type") %>%
+  mutate(`Mobility type`=gsub("_percent_change_from_baseline", "", `Mobility type`))
+
+ggplot(plot_df, aes(x=DATA, y=value, color=`Mobility type`, group=`Mobility type`)) +
+  geom_line() + geom_point() +
+  ggthemes::theme_clean() + 
+  geom_hline(yintercept = 0, linetype="dashed") +
+  scale_x_date(name = "", labels = date_format("%e %b"), 
+               limits=c(ymd("2020-03-05"), ymd("2021-06-05")),
+               breaks=seq(ymd("2020-03-05"), ymd("2021-06-05"), by="3 months")) +
+  scale_y_continuous(name="Change in mobility from pre-pandemic baseline", labels=scales::percent) + 
+  ggthemes::scale_color_tableau()
+```
+
+Nós usaremos esses dados como covariáveis para o nosso modelo. A suposição aqui é a de que os padrões de mobilidade estão intimamente relacionados com a velocidade de propagação do vírus -- o Rt.
+
+Adicionaremos uma variável `alpha` para atribuir um peso às variáveis de mobilidade, o que será usado depois para 
+
+O modelo abaixo é o que a gente chama de modelo `base`:
+
+```{stan eval=TRUE, output.var="base_model"}
+data {
+  int <lower=1> M; 
+  int <lower=1> P; 
+  int <lower=1> N0; 
+  int<lower=1> N[M]; 
+  int<lower=1> N2; 
+  int cases[N2,M];
+  int deaths[N2, M];
+  matrix[N2, M] f;
+  matrix[N2, P] X[M]; // dados de variação percentual da mobilidade
+  real pop[M];
+  real SI[N2];
+}
+
+transformed data {
+  vector[N2] SI_rev;
+  vector[N2] f_rev[M];
+
+  for(i in 1:N2)
+    SI_rev[i] = SI[N2-i+1];
+
+  for(m in 1:M){
+    for(i in 1:N2) {
+     f_rev[m, i] = f[N2-i+1,m];
+    }
+  }
+}
+
+
+parameters {
+  real<lower=0> mu[M]; 
+  real<lower=0> gamma;
+  real<lower=0> kappa;
+  real<lower=0> y;
+  real<lower=0> phi;
+  real<lower=0> tau;
+  real <lower=0> ifr_noise[M];
+  real alpha[P];
+  real alpha1[P,M];
+}
+
+transformed parameters {
+    matrix[N2, M] prediction = rep_matrix(0,N2,M);
+    matrix[N2, M] E_deaths  = rep_matrix(0,N2,M);
+    matrix[N2, M] Rt = rep_matrix(0,N2,M);
+    matrix[N2, M] Rt_adj = Rt;
+
+    {
+      matrix[N2,M] cumm_sum = rep_matrix(0,N2,M);
+      vector[N2] linear_effect;
+      for (m in 1:M){
+        linear_effect = rep_vector(0,N2);
+        prediction[1:N0,m] = rep_vector(y,N0); // learn the number of cases in the first N0 days
+        cumm_sum[2:N0,m] = cumulative_sum(prediction[2:N0,m]);
+
+        for(p in 1:P) {
+          linear_effect -= X[m,,p] * (alpha[p] + alpha1[p,m]);
+        }
+
+        Rt[,m] = mu[m] * 2 * inv_logit(linear_effect);
+        Rt_adj[1:N0,m] = Rt[1:N0,m];
+        for (i in (N0+1):N2) {
+          real convolution = dot_product(sub_col(prediction, 1, m, i-1), tail(SI_rev, i-1));
+          cumm_sum[i,m] = cumm_sum[i-1,m] + prediction[i-1,m];
+          Rt_adj[i,m] = ((pop[m]-cumm_sum[i,m]) / pop[m]) * Rt[i,m];
+          prediction[i, m] = Rt_adj[i,m] * convolution;
+        }
+        E_deaths[1, m]= 1e-15 * prediction[1,m];
+        for (i in 2:N2){
+          E_deaths[i,m] = ifr_noise[m] * dot_product(sub_col(prediction, 1, m, i-1), tail(f_rev[m], i-1));
+        }
+      }
+    }
+}
+model {
+  tau ~ exponential(0.03);
+  y ~ exponential(1/tau);
+  
+  gamma ~ normal(0,.2);
+  phi ~ normal(0,5);
+  kappa ~ normal(0,0.5);
+  mu ~ normal(2, kappa);
+  alpha ~ normal(0,0.5);
+  for (i in 1:P)
+    alpha1[i,] ~ normal(0,gamma);
+  ifr_noise ~ normal(1,0.1);
+  for(m in 1:M){
+    deaths[1:N[m], m] ~ neg_binomial_2(E_deaths[1:N[m], m], phi);
+   }
+}
+
+
+
+```
+
+Vamos rodar uma nova simulação com esse modelo:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+require(rstan)
+
+fit <- 
+  rstan::sampling(base_model,
+                  data = stan_list$stan_data, iter = 1000, warmup = 500, 
+                  chains = 1, verbose = TRUE,
+                  control = list(adapt_delta = 0.95, max_treedepth = 7))
+```
+
+## Extração dos resultados para diagnóstico
+
+```{r eval=TRUE, message=FALSE}
+require(bayesplot)
+
+model_output <- 
+  list(fit = fit, out = rstan::extract(fit), 
+       stan_list = stan_list, 
+       model_name = "simple_model_likelihood", 
+       mode = "CUSTOM", 
+       is_weekly = FALSE)
+model_output[["covid_data"]] <- covid_data
+
+lp <- log_posterior(fit)
+np <- nuts_params(fit)
+```
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 8, fig.height=5}
+mcmc_nuts_acceptance(np, lp)
+```
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 8, fig.height=5}
+mcmc_nuts_divergence(np, lp)
+```
+
+Zero divergências! Isso é ótimo.
+
+```{r eval=TRUE, message=TRUE, warning=FALSE, fig.width = 8, fig.height=5}
+rstan::check_hmc_diagnostics(model_output$fit)
+```
+
+## Como ficaram as posteriores?
+
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 8, fig.height=5}
+
+require(bayesplot)
+
+fit_df <- as.data.frame(model_output$fit)
+cols <- fit_df %>% select(tau, y, kappa, contains("mu")) %>% colnames()
+
+mcmc_dens(as.array(model_output$fit), np=np, pars=cols)
+```
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 8, fig.height=5}
+require(bayesplot)
+
+fit_df <- as.data.frame(model_output$fit)
+cols <- fit_df %>% select(contains("alpha")) %>% colnames()
+
+mcmc_dens(as.array(model_output$fit), np=np, pars=cols)
+```
+
+## Gráficos de diagnóstico
+
+Dessa vez o R0 ficou próximo de 3 e agora ele oscila bastante com o tempo, de acordo com as variações do Google Mobility:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_Rt_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+A curva epidêmica estimada consegue acompanhar relativamente bem as três ondas. Porém, note que, para o modelo, a  "explicação" para o aumento inesperado nos óbitos da terceira onda se deve a um número bem maior de infectados do que o número reportado:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_case_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
+Na prática, o mais provável é que essa terceira onda represente na verdade a propagação da variante P.1 (https://science.sciencemag.org/content/372/6544/815). Como não há nenhuma variável indicando ao modelo sobre mudanças nas dinâmicas de transmissão inerentes ao vírus, a explicação plausível que resta é aumentar o número de casos.
+
+A estimativa para a curva de óbitos ficou bem coerente desta vez:
+
+
+```{r eval=TRUE, message=FALSE, warning=FALSE, fig.width = 10, fig.height=5}
+plot_death_curve(model_output, model_output$stan_list$available_locations[1]) + 
+  scale_x_date(breaks="3 weeks", limits=c(ymd("2020-03-30", "2021-06-06")))
+```
+
 
 
 # Próximos passos
 
 Nos próximos tutoriais vamos abordar:
 
-- como adicionar covariates (Google Mobility) para estimar o Rt
-- como lidar com múltiplas localidades: dá certo estimar cada local separadamente ou precisa estimar tudo junto?
-- o tempo de execução de modelos de joint estimate
-- o modelo `base-reported`
-- o modelo weekly: como agregar os dados por semanas ao invés de dias.
+- Como lidar com múltiplas localidades: dá certo estimar cada local separadamente ou precisa estimar tudo junto?
+- O tempo de execução de modelos de joint estimate
+- O modelo `base-reported`
 
 
 # Referências
