@@ -672,3 +672,43 @@ save_data_for_dashboard <- function(model_output, save_path = "./", aggregate_na
     write_file(aggregate_name, paste0(locdir, "/aggregate_name.txt"))
   }
 }
+
+update_aggregated_model <- function(model_output_all, model_output){
+  require(abind)
+  
+  # update $out
+  changes <-c("mu","y")
+  for (ch in changes){
+    model_output_all$out[[ch]] <- abind(model_output_all$out[[ch]], model_output$out[[ch]], along=2)
+  }
+  
+  changes <-c("alpha1","prediction","E_deaths", "Rt_adj")
+  for (ch in changes){
+    model_output_all$out[[ch]] <- abind(model_output_all$out[[ch]], model_output$out[[ch]], along=3)
+  }
+  
+  
+  #update $stan_list
+  changes <- c("dates", "reported_cases","deaths_by_location", "available_locations")
+  for (ch in changes){
+    model_output_all$stan_list[[ch]] <- append(model_output_all$stan_list[[ch]],
+                                               model_output$stan_list[[ch]])
+  }
+  
+  #update stan_list$stan_data
+  changes <- c("N","pop")
+  for (ch in changes){
+    model_output_all$stan_list$stan_data[[ch]] <- append(model_output_all$stan_list$stan_data[[ch]],
+                                                         model_output$stan_list$stan_data[[ch]])
+  }
+  changes <- c("f","deaths","cases")
+  for (ch in changes){
+    model_output_all$stan_list$stan_data[[ch]] <- abind(model_output_all$stan_list$stan_data[[ch]],
+                                                        model_output$stan_list$stan_data[[ch]], along=2)
+  }
+  model_output_all$stan_list$stan_data$X <- abind(model_output_all$stan_list$stan_data$X,
+                                                  model_output$stan_list$stan_data$X, along=1)
+  
+  return(model_output_all)
+  
+}
