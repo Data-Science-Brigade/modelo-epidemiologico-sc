@@ -31,14 +31,14 @@ micro_health_regions <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
                           "SC_RSA_XANXERE")
 
 
-for (location in micro_health_regions){ 
-    i <- which(micro_health_regions==location)
+for (location in macro_health_regions){ 
+    i <- which(macro_health_regions==location)
     option_list <- make_option_list(location,
                                     mode="FULL",
-                                    default_locations_text = "all health-regions independently",
+                                    default_locations_text = "all macro-regions independently",
                                     reference_date="2021_07_05",
                                     aggregate_name="SC_ESTADO",
-                                    nickname="RSA")
+                                    nickname="MAC")
     
     opt_parser <- OptionParser(option_list=option_list);
     opt <- parse_args(opt_parser);
@@ -60,9 +60,9 @@ this_dir = system("pwd", intern = TRUE)
 
 setwd(dir_saved_models)
 
-if (length(model_files) != length(micro_health_regions)){
+if (length(model_files) != length(macro_health_regions)){
     sprintf("Not enough single-region models! Check if all models concluded successfully. Expected %s, got %s",
-                    length(micro_health_regions), length(model_files)    )
+                    length(macro_health_regions), length(model_files)    )
     # HOW DO I PRINT AN ERROR HERE?
     
 } else {
@@ -72,7 +72,7 @@ if (length(model_files) != length(micro_health_regions)){
         
         if (i==1){
             model_output_all <- copy(model_output)
-            model_output_all$stan_list$stan_data$M <- length(micro_health_regions)
+            model_output_all$stan_list$stan_data$M <- length(macro_health_regions)
         } else {
             model_output_all <- update_aggregated_model(model_output_all, model_output)
         }
@@ -80,7 +80,7 @@ if (length(model_files) != length(micro_health_regions)){
     }
 }
 
-model_output_all_filename <- paste0(model_output_all$filename_suffix, "-HEALTH-REG-INDEPEND-stanfit.Rdata")
+model_output_all_filename <- paste0(model_output_all$filename_suffix, "-MACRO-REG-INDEPEND-stanfit.Rdata")
 cat(sprintf("\nSaving joint model objects to %s", model_output_all_filename))
 save(model_output_all, file = model_output_all_filename)
 
@@ -88,7 +88,7 @@ setwd(this_dir)
 
 # update covid_data in model_output_all
 covid_data_all <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
-                              allowed_locations = micro_health_regions 
+                              allowed_locations = macro_health_regions 
 )
 
 model_output_all[["covid_data"]] <- covid_data_all
