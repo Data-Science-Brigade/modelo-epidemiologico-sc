@@ -3,6 +3,7 @@ library(epiCataPlot)
 library(epiCata)
 library(lubridate)
 library(data.table)
+library(abind)
 
 
 macro_health_regions <- c("SC_MAC_FOZ_DO_RIO_ITAJAI",
