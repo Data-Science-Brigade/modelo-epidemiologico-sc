@@ -56,7 +56,7 @@ for (location in micro_health_regions){
 }
 
 dir_saved_models <- paste0(opt$save_path,"results/", strftime(opt$reference_date, "%Y_%m_%d") )
-this_dir = system("pwd", intern = TRUE)
+this_dir = getwd()
 
 setwd(dir_saved_models)
 
