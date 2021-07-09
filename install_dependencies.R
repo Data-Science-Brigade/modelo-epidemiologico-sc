@@ -1,4 +1,5 @@
 require(devtools)
+devtools::install_version("abind", version="1.4-5")
 devtools::install_version("rstan", version="2.19.3")
 devtools::install_version("zoo", version="1.8.0")
 devtools::install_version("bayesplot", version="1.7.2")
