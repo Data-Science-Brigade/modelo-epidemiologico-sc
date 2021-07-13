@@ -8,7 +8,6 @@ data {
   int deaths[N2, M]; // reported deaths -- the rows with i > N contain -1 and should be ignored
   matrix[N2, M] f; // h * s
   matrix[N2, P] X[M]; // features matrix
-  int EpidemicStart[M];
   real pop[M];
   real SI[N2]; // fixed pre-calculated SI using emprical data from Neil
 }
@@ -104,8 +103,8 @@ model {
   infection_overestimate ~ normal(11.5,2);
   
   for(m in 1:M){
-    cases[EpidemicStart[m]:N[m], m] ~ neg_binomial_2(prediction[EpidemicStart[m]:N[m], m] / infection_overestimate[m], phi);
-    deaths[EpidemicStart[m]:N[m], m] ~ neg_binomial_2(E_deaths[EpidemicStart[m]:N[m], m], phi);
+    cases[1:N[m], m] ~ neg_binomial_2(prediction[1:N[m], m] / infection_overestimate[m], phi);
+    deaths[1:N[m], m] ~ neg_binomial_2(E_deaths[1:N[m], m], phi);
    }
 }
 
