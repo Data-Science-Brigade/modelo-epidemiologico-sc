@@ -34,11 +34,11 @@ micro_health_regions <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
 
 
 option_list <- make_option_list(macro_health_regions,
-                                mode="DEBUG",
-                                default_locations_text = "all health-regions independently",
+                                mode="FULL",
+                                default_locations_text = "all macro-regions independently",
                                 reference_date="2020_07_10",
                                 aggregate_name="SC_ESTADO",
-                                nickname="RSA")
+                                nickname="MAC")
 
 opt_parser <- OptionParser(option_list=option_list);
 opt <- parse_args(opt_parser);
