@@ -85,6 +85,105 @@ run_model_with_opt <- function(opt, default_locations) {
   model_output
 }
 
+
+
+run_model_with_opt_independent <- function(opt, default_locations) {
+  if (!is.null(opt[["reference_date"]])) {
+    opt[["reference_date"]] <- ymd(opt[["reference_date"]])
+  }
+  
+  if (any(opt[["allowed_locations"]] != default_locations)) {
+    exit("Allowed locations not implemented yet")
+  }
+  
+  if (all(
+    is.null(opt[["mode"]]), is.null(opt[["iter"]]), is.null(opt[["warmup"]]), is.null(opt[["chains"]]),
+    is.null(opt[["adapt_delta"]]), is.null(opt[["max_treedepth"]]), is.null(opt[["verbose"]])
+  )) {
+    warning("No model parameter passed, running model in DEBUG mode")
+    opt[["mode"]] <- "DEBUG"
+  }
+  
+  if (!file.exists(sprintf("%s/stan-models/%s.stan", get_data_folder(), opt[["model"]]))) {
+    error(sprintf("Model %s does not exist in the package! If you added a new model, have you tried re-compiling the package?"), opt[["model"]])
+  }
+  
+  for (name in names(opt)) {
+    print(name)
+    print(opt[[name]])
+    if (!is.null(opt[[name]]) && as.character(opt[[name]]) == "NULL") {
+      opt[[name]] <- NULL
+    }
+    print(opt[[name]])
+  }
+  
+  # Change \ to / in save_path
+  opt[["save_path"]] <- gsub("\\\\", "/", opt[["save_path"]])
+  # Add last slash since some functions expect it to be there
+  if (!endsWith(opt[["save_path"]], "/")) {
+    warning("Path passed did not have last slash, which is expected")
+    opt[["save_path"]] <- paste0(opt[["save_path"]], "/")
+  }
+  
+  # Read data
+  cat(sprintf("\nReading Data"))
+  covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
+                                allowed_locations = opt[["allowed_locations"]]
+  )
+  interventions <- read_interventions(opt[["interventions"]],
+                                      allowed_interventions = NULL, # TODO allowed interventions?
+                                      google_mobility_filename = opt[["google_mobility"]],
+                                      google_mobility_window_size = opt[["google_mobility_window_size"]]
+  )
+  onset_to_death <- read_onset_to_death(opt[["onset_to_death"]])
+  IFR <- read_IFR(opt[["ifr"]])
+  serial_interval <- read_serial_interval(opt[["serial_interval"]])
+  infection_to_onset <- read_infection_to_onset(opt[["infection_to_onset"]])
+  population <- read_pop(opt[["population"]])
+  stan_list <-
+    prepare_stan_data(covid_data,
+                      interventions,
+                      onset_to_death,
+                      IFR,
+                      serial_interval,
+                      infection_to_onset,
+                      population,
+                      is_weekly = opt[["is_weekly"]],
+                      google_mobility_filename = opt[["google_mobility"]],
+                      google_mobility_window_size = opt[["google_mobility_window_size"]],
+                      population_filename = opt[["population"]]
+    )
+  
+  model_output <-
+    run_epidemiological_model(stan_list,
+                              mode = opt[["mode"]],
+                              model_name = opt[["model"]],
+                              nickname = opt[["nickname"]],
+                              iter = opt[["iter"]],
+                              warmup = opt[["warmup"]],
+                              chains = opt[["chains"]],
+                              adapt_delta = opt[["adapt_delta"]],
+                              max_treedepth = opt[["max_treedepth"]],
+                              verbose = opt[["verbose"]],
+                              init_model_fname = opt[["model_init_filename"]],
+                              is_weekly = opt[["is_weekly"]]
+    )
+  model_output[["covid_data"]] <- covid_data
+  
+  w<-strsplit(opt[["allowed_locations"]], "_")
+  short_name <- w[[1]][3:length((w[[1]]))]
+  location_name <-paste(short_name, collapse = '_')
+  
+  model_output <- save_fitted_model_independent(model_output, opt[["reference_date"]], location_name, save_path = opt[["save_path"]])
+  
+  model_output
+}
+
+
+
+
+
+
 make_option_list <- function(default_locations,
                              reference_date = NULL,
                              aggregate_name = NULL,
@@ -196,7 +295,7 @@ make_option_list <- function(default_locations,
     ),
     make_option(c("-e", "--model_init_filename"),
       type = "character", default = model_init_filename, dest = "model_init_filename",
-      help = sprintf("Model to init from. If NULL it won't be used. Default: %s", ifelse(is.null(model_init_filename), "NULL", model_init_filename))
+      help = sprintf("Model to init from. If NULL it won't be used. If 'True' reads past week model. Default: %s", ifelse(is.null(model_init_filename), "NULL", model_init_filename))
     ),
     make_option(c("-y", "--is-weekly"),
       type = "logical", default = is_weekly, dest = "is_weekly",

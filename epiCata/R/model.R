@@ -150,6 +150,26 @@ save_fitted_model <- function(model_output, reference_date, save_path = "./") {
   return(model_output)
 }
 
+save_fitted_model_independent <- function(model_output, reference_date, location_name, save_path = "./") {
+  reference_date_str <- strftime(reference_date, "%Y_%m_%d")
+  
+  # Assign a random number to JOBID
+  JOBID <- as.character(abs(round(rnorm(1) * 1000000)))
+  filename_suffix <- paste0(reference_date_str, "_", location_name, "_", model_output$model_name, "_", model_output$mode, "_", JOBID)
+  
+  dir.create(paste0(save_path, "results/", reference_date_str), recursive = TRUE, showWarnings = FALSE)
+  dir.create(paste0(save_path, "figures/", reference_date_str), recursive = TRUE, showWarnings = FALSE)
+  
+  model_output$reference_date_str <- reference_date_str
+  model_output$filename_suffix <- filename_suffix
+  
+  model_output_filename <- paste0(save_path, "results/", reference_date_str, "/", filename_suffix, "-stanfit.Rdata")
+  cat(sprintf("\nSaving model objects to %s", model_output_filename))
+  save(model_output, file = model_output_filename)
+  
+  return(model_output)
+}
+
 change_model_name <- function(model_output, new_model_name, save_path = "./") {
   reference_date_str <- model_output$reference_date_str
   model_output$model_name <- new_model_name
