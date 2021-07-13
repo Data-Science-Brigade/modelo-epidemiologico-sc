@@ -32,9 +32,6 @@ micro_health_regions <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
                           "SC_RSA_SERRA_CATARINENSE",
                           "SC_RSA_XANXERE")
 
-micro_health_regions <- c("SC_RSA_XANXERE",
-                          "SC_RSA_ALTO_VALE_DO_RIO_DO_PEIXE")
-
 
 option_list <- make_option_list(micro_health_regions,
                                 mode="DEBUG",
@@ -77,6 +74,11 @@ for (location in micro_health_regions){
 
 }
 
+# update covid_data in model_output_all
+covid_data_all <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
+                                  allowed_locations = micro_health_regions
+)
+
 dir_saved_models <- paste0(opt$save_path,"results/", strftime(opt$reference_date, "%Y_%m_%d") )
 this_dir = getwd()
 
@@ -102,22 +104,22 @@ if (length(model_files) != length(micro_health_regions)){
     }
 }
 
-model_output_all_filename <- paste0(model_output_all$reference_date_str, "_",
-                          model_output_all$model_name,
-                          "_", model_output_all$mode,
-                          "_HEALTH-REG-INDEPEND-stanfit.Rdata")
+model_output_all[["covid_data"]] <- covid_data_all
+
+filename_suffix <- paste0(model_output_all$reference_date_str, "_",
+                          model_output_all$model_name, "_",
+                          model_output_all$mode, "_",
+                          "HEALTH-REG-INDEPEND")
+
+model_output_all$filename_suffix <- filename_suffix
+
+model_output_all_filename <- paste0(model_output_all$filename_suffix, "-stanfit.Rdata")
 
 cat(sprintf("\nSaving joint model objects to %s", model_output_all_filename))
 save(model_output_all, file = model_output_all_filename)
 
 setwd(this_dir)
 
-# update covid_data in model_output_all
-covid_data_all <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
-                              allowed_locations = micro_health_regions
-)
-
-model_output_all[["covid_data"]] <- covid_data_all
 
 make_all_three_panel_plot(model_output_all, aggregate_name = opt$aggregate_name,
                           save_path = opt$save_path)
