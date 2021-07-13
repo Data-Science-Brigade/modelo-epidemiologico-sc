@@ -32,7 +32,6 @@ micro_health_regions <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
                           "SC_RSA_SERRA_CATARINENSE",
                           "SC_RSA_XANXERE")
 
-
 option_list <- make_option_list(micro_health_regions,
                                 mode="FULL",
                                 default_locations_text = "all health-regions independently",

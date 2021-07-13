@@ -200,6 +200,7 @@ make_option_list <- function(default_locations,
                              serial_interval_csv = "serial_interval.csv",
                              save_path = "../",
                              model_init_filename = NULL,
+                             model_init_period_dif = 7,
                              mode="DEBUG",
                              is_weekly = FALSE) {
   if (is.null(reference_date)) {
@@ -296,6 +297,10 @@ make_option_list <- function(default_locations,
     make_option(c("-e", "--model_init_filename"),
       type = "character", default = model_init_filename, dest = "model_init_filename",
       help = sprintf("Model to init from. If NULL it won't be used. If 'True' reads past week model. Default: %s", ifelse(is.null(model_init_filename), "NULL", model_init_filename))
+    ),
+    make_option(c("-j", "--model_init_period_dif"),
+                type = "integer", default = 7, dest = "model_init_period_dif",
+                help = sprintf("Number of days the model to init from is distant from the reference date. Only used if model_init_filename is not NULL. Default: 7")
     ),
     make_option(c("-y", "--is-weekly"),
       type = "logical", default = is_weekly, dest = "is_weekly",

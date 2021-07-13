@@ -52,7 +52,8 @@ for (location in macro_health_regions){
     i <- which(macro_health_regions==location)
     
     if (!is.null(opt$model_init_filename)) {
-        last_model_date <- strftime(as.Date(opt$reference_date, "%Y-%m-%d") - 7, "%Y_%m_%d")
+        last_model_date <- strftime(as.Date(opt$reference_date, "%Y-%m-%d") - opt$model_init_period_dif,
+                                    "%Y_%m_%d")
         dir_last_model <- paste0("../results/", last_model_date)
         glob_var<-paste0("*", location_nickname, "*")
         model_init_fname <- fs::dir_ls(path = dir_last_model, type = "file", glob = glob_var)
