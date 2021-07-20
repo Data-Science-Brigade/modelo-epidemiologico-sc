@@ -71,7 +71,7 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
   x2 <- EnvStats::rgammaAlt(1e6, onset_to_death$avg_days, onset_to_death$coeff_variation) # onset-to-death distribution
   ecdf.saved <- ecdf(x1 + x2)
   
-  gen_serial_interval <- ecdf(EnvStats::rgammaAlt(1e6, 6.5, 0.62)) # serial-interval distribution
+  gen_serial_interval <- ecdf(EnvStats::rgammaAlt(1e6, 6.05, 0.7)) # serial-interval distribution
   SI <- rep(0, N2) # f is the probability of dying on day i given infection
   SI[1] <- (gen_serial_interval(1.5) - gen_serial_interval(0))
   for (i in 2:N2) {
