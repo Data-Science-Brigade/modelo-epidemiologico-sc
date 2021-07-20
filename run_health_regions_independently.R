@@ -31,7 +31,11 @@ micro_health_regions <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
                           "SC_RSA_SERRA_CATARINENSE",
                           "SC_RSA_XANXERE")
 
-
+micro_health_regions <- c("SC_RSA_ALTO_VALE_DO_ITAJAI",
+                          "SC_RSA_ALTO_VALE_DO_RIO_DO_PEIXE",
+                          "SC_RSA_CARBONIFERA",
+                          "SC_RSA_EXTREMO_OESTE",
+                          "SC_RSA_EXTREMO_SUL_CATARINENSE")
 for (location in micro_health_regions){ 
     i <- which(micro_health_regions==location)
     option_list <- make_option_list(location,
