@@ -48,51 +48,61 @@ model_files <- list.files(dir_saved_models)
 
 this_dir = getwd()
 
+# update covid_data in model_output_all
+covid_data_all <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
+                                  allowed_locations = micro_health_regions
+)
+
+
+
 setwd(dir_saved_models)
 
 if (length(model_files) != length(micro_health_regions)){
-    print(sprintf("Not enough single-region models! Check if all models concluded successfully. Expected %s, got %s",
-                    length(micro_health_regions), length(model_files)))
-    
+  sprintf("Not enough single-region models! Check if all models concluded successfully. Expected %s, got %s",
+          length(micro_health_regions), length(model_files)    )
+  # HOW DO I PRINT AN ERROR HERE?
+  
 } else {
-    for (model_file in model_files){ 
-        i <- which(model_files==model_file)
-        print(sprint("Loading %s", model_file))
-	load(model_file)
-       
-        if (i==1){
-            model_output_all <- copy(model_output)
-            model_output_all$stan_list$stan_data$M <- length(micro_health_regions)
-        } else {
-            model_output_all <- update_aggregated_model(model_output_all, model_output)
-        }
-        rm(model_output)
+  for (model_file in model_files){
+    i <- which(model_files==model_file)
+    load(model_file)
+    
+    if (i==1){
+      model_output_all <- copy(model_output)
+      model_output_all$stan_list$stan_data$M <- length(micro_health_regions)
+    } else {
+      model_output_all <- update_aggregated_model(model_output_all, model_output)
     }
+    rm(model_output)
+  }
 }
-
-model_output_all_filename <- paste0(model_output_all$filename_suffix, "-HEALTH-REG-INDEPEND-stanfit.Rdata")
-cat(sprintf("\nSaving joint model objects to %s", model_output_all_filename))
-save(model_output_all, file = model_output_all_filename)
-
-
-setwd(this_dir)
-
-# update covid_data in model_output_all
-covid_data_all <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
-                              allowed_locations = micro_health_regions 
-)
 
 model_output_all[["covid_data"]] <- covid_data_all
 
+filename_suffix <- paste0(model_output_all$reference_date_str, "_",
+                          model_output_all$model_name, "_",
+                          model_output_all$mode, "_",
+                          "HEALTH-REG-INDEPEND")
 
-make_all_three_panel_plot(model_output_all, aggregate_name = opt$aggregate_name, save_path = opt$save_path)
+model_output_all$filename_suffix <- filename_suffix
+
+model_output_all_filename <- paste0(model_output_all$filename_suffix, "-stanfit.Rdata")
+
+cat(sprintf("\nSaving joint model objects to %s", model_output_all_filename))
+save(model_output_all, file = model_output_all_filename)
+
+setwd(this_dir)
+
+
+make_all_three_panel_plot(model_output_all, aggregate_name = opt$aggregate_name,
+                          save_path = opt$save_path)
 
 mi <- NULL
 wma <- NULL
 ma <- NULL
 
-make_all_forecast_plots(model_output_all, aggregate_name = opt$aggregate_name, 
-                        min_y_breaks=mi,max_y_breaks=ma, week_max_y_breaks=wma, 
+make_all_forecast_plots(model_output_all, aggregate_name = opt$aggregate_name,
+                        min_y_breaks=mi,max_y_breaks=ma, week_max_y_breaks=wma,
                         save_path = opt$save_path)
 
 last_8_weeks = ymd(model_output_all$reference_date_str) - 8*7 - 1
@@ -102,6 +112,3 @@ make_all_C_plot(model_output_all, aggregate_name = opt$aggregate_name, min_x_bre
 save_data_for_dashboard(model_output_all, save_path = "~/epiCataDashboard/", aggregate_name = opt$aggregate_name)
 
 print("Done")
-
-
-
