@@ -8,6 +8,8 @@ If you reuse this code, please cite the reference above.
 
 In case you encounter any problems replicating this code or have any suggestions, you can [open a new issue](https://github.com/Data-Science-Brigade/modelo-epidemiologico-sc/issues) here on Github.
 
+Ideas, questions and other general comments can be made at the [Discussions](https://github.com/Data-Science-Brigade/modelo-epidemiologico-sc/discussions) page.
+
 ## Useful Links
 
 Tutorials are available in Brazilian Portuguese (PT-BR):
