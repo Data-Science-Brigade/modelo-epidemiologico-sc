@@ -32,6 +32,7 @@ micro_health_regions <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
                           "SC_RSA_SERRA_CATARINENSE",
                           "SC_RSA_XANXERE")
 
+
 option_list <- make_option_list(micro_health_regions,
                                 mode="FULL",
                                 default_locations_text = "all health-regions independently",
@@ -48,12 +49,6 @@ for (location in micro_health_regions){
     short_name <- w[[1]][3:length((w[[1]]))]
     location_nickname <-paste(short_name, collapse = '_')
     
-micro_health_regions <- c("SC_RSA_ALTO_VALE_DO_ITAJAI",
-                          "SC_RSA_ALTO_VALE_DO_RIO_DO_PEIXE",
-                          "SC_RSA_CARBONIFERA",
-                          "SC_RSA_EXTREMO_OESTE",
-                          "SC_RSA_EXTREMO_SUL_CATARINENSE")
-for (location in micro_health_regions){ 
     i <- which(micro_health_regions==location)
     
     if (!is.null(opt$model_init_filename)) {
@@ -67,7 +62,7 @@ for (location in micro_health_regions){
     
     opt$model_init_filename <- model_init_fname
     opt$allowed_locations <- location
-
+    
     # TODO: allowed_locations is a misnomer. Rename it to "selected_locations" so it makes more sense.
     model_output <- run_model_with_opt_independent(opt,opt[["allowed_locations"]])
     if (i == 1){
@@ -76,7 +71,7 @@ for (location in micro_health_regions){
         model_files <- append(model_files, model_output$filename_suffix )
     }
     rm(model_output)
-
+    
 }
 
 # update covid_data in model_output_all
@@ -91,14 +86,14 @@ setwd(dir_saved_models)
 
 if (length(model_files) != length(micro_health_regions)){
     sprintf("Not enough single-region models! Check if all models concluded successfully. Expected %s, got %s",
-                    length(micro_health_regions), length(model_files)    )
+            length(micro_health_regions), length(model_files)    )
     # HOW DO I PRINT AN ERROR HERE?
-
+    
 } else {
     for (model_file in model_files){
         i <- which(model_files==model_file)
         load(paste0(model_file, "-stanfit.Rdata") )
-
+        
         if (i==1){
             model_output_all <- copy(model_output)
             model_output_all$stan_list$stan_data$M <- length(micro_health_regions)
