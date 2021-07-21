@@ -24,15 +24,14 @@ micro_health_regions_A <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
                           "SC_RSA_GRANDE_FLORIANOPOLIS")
 
 
-
 micro_health_regions_B <- c("SC_RSA_LAGUNA",
-                          "SC_RSA_MEDIO_VALE_DO_ITAJAI",
-                          "SC_RSA_MEIO_OESTE",
-                          "SC_RSA_NORDESTE",
-                          "SC_RSA_OESTE",
-                          "SC_RSA_PLANALTO_NORTE",
-                          "SC_RSA_SERRA_CATARINENSE",
-                          "SC_RSA_XANXERE")
+                            "SC_RSA_MEDIO_VALE_DO_ITAJAI",
+                            "SC_RSA_MEIO_OESTE",
+                            "SC_RSA_NORDESTE",
+                            "SC_RSA_OESTE",
+                            "SC_RSA_PLANALTO_NORTE",
+                            "SC_RSA_SERRA_CATARINENSE",
+                            "SC_RSA_XANXERE")
 
 micro_health_regions <- c(micro_health_regions_A, micro_health_regions_B)
 
