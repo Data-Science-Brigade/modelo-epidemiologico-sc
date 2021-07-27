@@ -71,7 +71,7 @@ prepare_stan_data <- function(covid_data, interventions, onset_to_death, IFR,
   x2 <- EnvStats::rgammaAlt(1e6, onset_to_death$avg_days, onset_to_death$coeff_variation) # onset-to-death distribution
   ecdf.saved <- ecdf(x1 + x2)
   
-  gen_serial_interval <- ecdf(EnvStats::rgammaAlt(1e6, 6.5, 0.62)) # serial-interval distribution
+  gen_serial_interval <- ecdf(EnvStats::rgammaAlt(1e6, 6.05, 0.7)) # serial-interval distribution
   SI <- rep(0, N2) # f is the probability of dying on day i given infection
   SI[1] <- (gen_serial_interval(1.5) - gen_serial_interval(0))
   for (i in 2:N2) {
@@ -187,7 +187,9 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
     ifelse(is_weekly, "week", "day"),
     idx_deaths_mark
   ))
-  location_data <- location_data[month_before_deaths_mark:nrow(location_data), ]
+  start_date <- as.Date("2020-03-08")
+  idx_start_date <-which(location_data$data_ocorrencia == start_date)
+  location_data <- location_data[idx_start_date:nrow(location_data), ]
 
   #### EPIDEMIC START AND POPULATION ####
   location_pop <- population[population$location_name == location_name, ]$pop
