@@ -77,10 +77,10 @@ cases2 <- deaths2*100/7
 cases_comb <- cases1+cases2
   
 # Plots  
-plot_df_cases <- data.frame(x=x1,y1=casoe1, y2=casos2, ycomb=cases_comb)
+plot_df_cases <- data.frame(x=x1,y1=cases1, y2=cases2, ycomb=cases_comb)
 
 
-ggplot(plot_df_casos, aes(x=x))+
+ggplot(plot_df_cases, aes(x=x))+
     geom_col(aes(y=y1), fill='#596B9C', alpha = 0.8)+
     geom_col(aes(y=y2), fill='#9C5998', alpha=1) +
     theme_minimal()+
@@ -89,7 +89,7 @@ ggplot(plot_df_casos, aes(x=x))+
 
 ggsave( "multivariants_cases.png",  plot = last_plot())
 
-ggplot(plot_df_casos, aes(x=x))+  
+ggplot(plot_df_cases, aes(x=x))+  
     geom_col(aes(y=ycomb), fill='#AC83C4', alpha = 0.8) +
     theme_minimal()+
     ggtitle("Cases")+
