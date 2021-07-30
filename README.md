@@ -10,6 +10,10 @@ In case you encounter any problems replicating this code or have any suggestions
 
 Ideas, questions and other general comments can be made at the [Discussions](https://github.com/Data-Science-Brigade/modelo-epidemiologico-sc/discussions) page.
 
+## Current focus
+
+You can see our project board [here](https://github.com/Data-Science-Brigade/modelo-epidemiologico-sc/projects/1).
+
 ## Useful Links
 
 Tutorials are available in Brazilian Portuguese (PT-BR):
