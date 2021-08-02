@@ -17,23 +17,26 @@ macro_health_regions <- c("SC_MAC_FOZ_DO_RIO_ITAJAI",
 micro_health_regions_A <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
                             "SC_RSA_ALTO_VALE_DO_ITAJAI",
                             "SC_RSA_ALTO_VALE_DO_RIO_DO_PEIXE",
-                            "SC_RSA_CARBONIFERA",
-                            "SC_RSA_EXTREMO_OESTE",
+                            "SC_RSA_CARBONIFERA")
+
+micro_health_regions_B <- c("SC_RSA_EXTREMO_OESTE",
                             "SC_RSA_EXTREMO_SUL_CATARINENSE",
                             "SC_RSA_FOZ_DO_RIO_ITAJAI",
                             "SC_RSA_GRANDE_FLORIANOPOLIS")
 
 
-micro_health_regions_B <- c("SC_RSA_LAGUNA",
+micro_health_regions_C <- c("SC_RSA_LAGUNA",
                             "SC_RSA_MEDIO_VALE_DO_ITAJAI",
                             "SC_RSA_MEIO_OESTE",
-                            "SC_RSA_NORDESTE",
-                            "SC_RSA_OESTE",
+                            "SC_RSA_NORDESTE")
+
+micro_health_regions_D <- c("SC_RSA_OESTE",
                             "SC_RSA_PLANALTO_NORTE",
                             "SC_RSA_SERRA_CATARINENSE",
                             "SC_RSA_XANXERE")
 
-micro_health_regions <- c(micro_health_regions_A, micro_health_regions_B)
+micro_health_regions <- c(micro_health_regions_A, micro_health_regions_B, micro_health_regions_C, micro_health_regions_D)
+
 
 for (location in micro_health_regions_B){
   i <- which(micro_health_regions_B == location)

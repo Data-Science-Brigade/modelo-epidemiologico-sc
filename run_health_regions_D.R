@@ -37,9 +37,9 @@ micro_health_regions_D <- c("SC_RSA_OESTE",
 
 micro_health_regions <- c(micro_health_regions_A, micro_health_regions_B, micro_health_regions_C, micro_health_regions_D)
 
-for (location in micro_health_regions_A){
+for (location in micro_health_regions_D){
   
-  i <- which(micro_health_regions_A == location)
+  i <- which(micro_health_regions_D == location)
   option_list <- make_option_list(location,
                                   mode="FULL",
                                   default_locations_text = "all health-regions independently",
@@ -54,7 +54,7 @@ for (location in micro_health_regions_A){
   short_name <- w[[1]][3:length((w[[1]]))]
   location_nickname <- paste(short_name, collapse = '_')
   
-  i <- which(micro_health_regions_A == location)
+  i <- which(micro_health_regions_D == location)
   
   if (!is.null(opt$model_init_filename)) {
     last_model_date <- strftime(as.Date(opt$reference_date, "%Y-%m-%d") - 7, "%Y_%m_%d")
