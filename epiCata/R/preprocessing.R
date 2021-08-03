@@ -187,9 +187,7 @@ get_stan_data_for_location <- function(location_name, population, IFR, N2, ecdf.
     ifelse(is_weekly, "week", "day"),
     idx_deaths_mark
   ))
-  start_date <- as.Date("2020-03-08")
-  idx_start_date <-which(location_data$data_ocorrencia == start_date)
-  location_data <- location_data[idx_start_date:nrow(location_data), ]
+  location_data <- location_data[month_before_deaths_mark:nrow(location_data), ]
 
   #### EPIDEMIC START AND POPULATION ####
   location_pop <- population[population$location_name == location_name, ]$pop
