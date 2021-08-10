@@ -94,20 +94,20 @@ save(model_output_all, file = model_output_all_filename)
 setwd(this_dir)
 
 
-make_all_three_panel_plot(model_output_all, aggregate_name = opt$aggregate_name,
-                          save_path = opt$save_path)
+#make_all_three_panel_plot(model_output_all, aggregate_name = opt$aggregate_name,
+#                          save_path = opt$save_path)
 
 mi <- NULL
 wma <- NULL
 ma <- NULL
 
-make_all_forecast_plots(model_output_all, aggregate_name = opt$aggregate_name,
-                        min_y_breaks=mi,max_y_breaks=ma, week_max_y_breaks=wma,
-                        save_path = opt$save_path)
+#make_all_forecast_plots(model_output_all, aggregate_name = opt$aggregate_name,
+#                        min_y_breaks=mi,max_y_breaks=ma, week_max_y_breaks=wma,
+#                        save_path = opt$save_path)
 
-last_8_weeks = ymd(model_output_all$reference_date_str) - 8*7 - 1
+#last_8_weeks = ymd(model_output_all$reference_date_str) - 8*7 - 1
 
-make_all_C_plot(model_output_all, aggregate_name = opt$aggregate_name, min_x_break=last_8_weeks, save_path = opt$save_path)
+#make_all_C_plot(model_output_all, aggregate_name = opt$aggregate_name, min_x_break=last_8_weeks, save_path = opt$save_path)
 
 save_data_for_dashboard(model_output_all, save_path = "~/epiCataDashboard/", aggregate_name = opt$aggregate_name)
 
