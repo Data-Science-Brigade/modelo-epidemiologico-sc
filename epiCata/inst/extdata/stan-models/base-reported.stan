@@ -105,7 +105,7 @@ model {
   infection_overestimate ~ normal(2,2);
   
   for(m in 1:M){
-    cases[3:(N[m]+2), m] ~ neg_binomial_2(prediction[1:N[m], m] / infection_overestimate[m], phi2);
+    cases[1:N[m], m] ~ neg_binomial_2(prediction[1:N[m], m] / infection_overestimate[m], phi2);
     deaths[1:N[m], m] ~ neg_binomial_2(E_deaths[1:N[m], m], phi);
    }
 }
