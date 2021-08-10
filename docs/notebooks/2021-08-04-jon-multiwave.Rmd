@@ -1,0 +1,27 @@
+---
+title: "Introducing explicit multiwave dynamics equations"
+author: '@jonjoncardoso'
+date: '2021-08-04'
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: true
+code_folding: show
+---
+
+**OBJECTIVE:** Adapt our current model to support multi-wave epidemic dynamics more explicitly. 
+
+**MOTIVATOR:** Model `base-reported` usually fits number of cases well -- as far as we can tell -- but at the expense of a poorer fit to the reported number of daily deaths. Where it fails the most is at predicting the peak of the third wave which happened throughout most regions of the state of Santa Catarina in the first quarter of 2021.
+
+![Fig 1: Example of model fit to the micro-region RSA_OESTE. a) Daily number of cases b) Daily number of deaths c) Estimated Rt.](figures/SC_RSA_OESTE_3panel_2021_08_02.png)
+
+# Sub-epidemic modelling
+
+Could we adapt our model with some of the logic introduced in the reference below?
+
+<div class="csl-entry" style="font-size: 70%">Chowell, G., Tariq, A., &#38; Hyman, J. M. (2019). A novel sub-epidemic modeling framework for short-term forecasting epidemic waves. <i>BMC Medicine</i>, <i>17</i>(1), 164. https://doi.org/10.1186/s12916-019-1406-6</div>
+
+
+
