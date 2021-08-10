@@ -33,6 +33,7 @@ parameters {
   real<lower=0> kappa;
   real<lower=0> y[M];
   real<lower=0> phi;
+  real<lower=0> phi2;
   real<lower=0> tau;
   real <lower=0> ifr_noise[M];
   real alpha[P];
@@ -40,7 +41,7 @@ parameters {
   real alpha_pop;
   real alpha1_pop[M];
   
-  real<lower=0> infection_overestimate[M];
+  real<lower=1> infection_overestimate[M];
 }
 
 transformed parameters {
@@ -91,6 +92,7 @@ model {
   }
   gamma ~ normal(0,.2);
   phi ~ normal(0,5);
+  phi2 ~ normal(0,5);
   kappa ~ normal(0,0.5);
   mu ~ normal(3.28, kappa); // citation: https://academic.oup.com/jtm/article/27/2/taaa021/5735319
   alpha ~ normal(0,0.5);
@@ -103,7 +105,7 @@ model {
   infection_overestimate ~ normal(2,2);
   
   for(m in 1:M){
-    cases[1:N[m], m] ~ neg_binomial_2(prediction[1:N[m], m] / infection_overestimate[m], phi);
+    cases[3:(N[m]+2), m] ~ neg_binomial_2(prediction[1:N[m], m] / infection_overestimate[m], phi2);
     deaths[1:N[m], m] ~ neg_binomial_2(E_deaths[1:N[m], m], phi);
    }
 }
