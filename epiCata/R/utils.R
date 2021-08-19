@@ -137,6 +137,7 @@ run_model_with_opt_independent <- function(opt, default_locations) {
   )
   onset_to_death <- read_onset_to_death(opt[["onset_to_death"]])
   IFR <- read_IFR(opt[["ifr"]])
+  #TODO: Replace read_serial_interval by fixed distribution
   serial_interval <- read_serial_interval(opt[["serial_interval"]])
   infection_to_onset <- read_infection_to_onset(opt[["infection_to_onset"]])
   population <- read_pop(opt[["population"]])
