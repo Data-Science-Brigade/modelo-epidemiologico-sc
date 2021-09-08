@@ -19,10 +19,12 @@ micro_health_regions_A <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
                             "SC_RSA_ALTO_VALE_DO_RIO_DO_PEIXE",
                             "SC_RSA_CARBONIFERA")
 
-micro_health_regions_B <- c("SC_RSA_EXTREMO_OESTE",
-                            "SC_RSA_EXTREMO_SUL_CATARINENSE",
-                            "SC_RSA_FOZ_DO_RIO_ITAJAI",
-                            "SC_RSA_GRANDE_FLORIANOPOLIS")
+# micro_health_regions_B <- c("SC_RSA_EXTREMO_OESTE",
+#                             "SC_RSA_EXTREMO_SUL_CATARINENSE",
+#                             "SC_RSA_FOZ_DO_RIO_ITAJAI",
+#                             "SC_RSA_GRANDE_FLORIANOPOLIS")
+
+micro_health_regions_B <- c("SC_RSA_LAGUNA")
 
 
 micro_health_regions_C <- c("SC_RSA_LAGUNA",

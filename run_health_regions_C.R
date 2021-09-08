@@ -25,10 +25,13 @@ micro_health_regions_B <- c("SC_RSA_EXTREMO_OESTE",
                             "SC_RSA_GRANDE_FLORIANOPOLIS")
 
 
-micro_health_regions_C <- c("SC_RSA_LAGUNA",
-                            "SC_RSA_MEDIO_VALE_DO_ITAJAI",
-                            "SC_RSA_MEIO_OESTE",
-                            "SC_RSA_NORDESTE")
+# micro_health_regions_C <- c("SC_RSA_LAGUNA",
+#                             "SC_RSA_MEDIO_VALE_DO_ITAJAI",
+#                             "SC_RSA_MEIO_OESTE",
+#                             "SC_RSA_NORDESTE")
+
+micro_health_regions_C <- c(
+                            "SC_RSA_MEIO_OESTE")
 
 micro_health_regions_D <- c("SC_RSA_OESTE",
                             "SC_RSA_PLANALTO_NORTE",
