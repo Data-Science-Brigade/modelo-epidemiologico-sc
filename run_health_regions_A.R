@@ -14,10 +14,13 @@ macro_health_regions <- c("SC_MAC_FOZ_DO_RIO_ITAJAI",
                           "SC_MAC_ALTO_VALE_DO_ITAJAI",
                           "SC_MAC_MEIO_OESTE_E_SERRA_CATARINENSE")
 
-micro_health_regions_A <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
-                            "SC_RSA_ALTO_VALE_DO_ITAJAI",
-                            "SC_RSA_ALTO_VALE_DO_RIO_DO_PEIXE",
-                            "SC_RSA_CARBONIFERA")
+# micro_health_regions_A <- c("SC_RSA_ALTO_URUGUAI_CATARINENSE",
+#                             "SC_RSA_ALTO_VALE_DO_ITAJAI",
+#                             "SC_RSA_ALTO_VALE_DO_RIO_DO_PEIXE",
+#                             "SC_RSA_CARBONIFERA")
+
+micro_health_regions_A <- c(
+                            "SC_RSA_ALTO_VALE_DO_ITAJAI")
 
 micro_health_regions_B <- c("SC_RSA_EXTREMO_OESTE",
                             "SC_RSA_EXTREMO_SUL_CATARINENSE",

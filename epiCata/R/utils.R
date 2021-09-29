@@ -128,7 +128,7 @@ run_model_with_opt_independent <- function(opt, default_locations) {
   # Read data
   cat(sprintf("\nReading Data"))
   covid_data <- read_covid_data(opt[["deaths"]], opt[["population"]], opt[["reference_date"]],
-                                allowed_locations = opt[["allowed_locations"]]
+                                allowed_locations = opt[["allowed_locations"]], start_pandemic = 0
   )
   interventions <- read_interventions(opt[["interventions"]],
                                       allowed_interventions = NULL, # TODO allowed interventions?
